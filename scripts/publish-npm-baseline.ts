@@ -25,7 +25,8 @@ const DEFAULT_OUTPUT_DIRECTORY = '.artifacts/npm-baseline'
 const PACKAGE_PATTERNS = [
   'vendor/*/package.json',
   'packages/*/*/package.json',
-  'apps/*/package.json',
+  'apps/cli/package.json',
+  'apps/web/package.json',
 ] as const
 const DEPENDENCY_SECTIONS = [
   'dependencies',
@@ -570,7 +571,8 @@ class BaselinePackager {
       this.runner.run('pnpm', [
         '--filter', './vendor/**',
         '--filter', './packages/**',
-        '--filter', './apps/**',
+        '--filter', './apps/cli',
+        '--filter', './apps/web',
         '--recursive',
         'pack',
         '--pack-destination', artifactDirectory,

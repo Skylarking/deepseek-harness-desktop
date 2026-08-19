@@ -1,0 +1,97 @@
+{
+  "name": "@deepseek-ai/dsh-desktop",
+  "description": "macOS desktop shell for DeepSeek Harness with local plugin management",
+  "version": "0.1.0-rc.7",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/main.js",
+  "scripts": {
+    "build": "pnpm run build:icon && pnpm run build:main && pnpm run build:renderer",
+    "build:icon": "tsx scripts/build-icon.ts",
+    "build:main": "tsdown",
+    "build:renderer": "vite build",
+    "dev": "pnpm run build && tsx scripts/stage-runtime.ts && electron .",
+    "package:mac": "pnpm run build && tsx scripts/stage-runtime.ts && electron-builder --mac dmg dir",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "electron": "43.4.0",
+    "electron-builder": "26.15.3",
+    "lucide": "1.31.0",
+    "tsdown": "^0.22.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "build": {
+    "appId": "com.deepseek.dsh.desktop",
+    "productName": "DeepSeek Harness",
+    "electronDist": "node_modules/electron/dist",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "lib/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "desktop.patch.yml",
+        "to": "desktop.patch.yml"
+      },
+      {
+        "from": ".runtime",
+        "to": "dsh-runtime",
+        "filter": [
+          "**/*",
+          "!node_modules{,/**/*}"
+        ]
+      },
+      {
+        "from": ".runtime/node_modules",
+        "to": "dsh-runtime/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icns",
+      "target": [
+        "dmg",
+        "dir"
+      ],
+      "artifactName": "DSH-Desktop-${version}-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "DeepSeek Harness ${version}",
+      "window": {
+        "width": 600,
+        "height": 400
+      },
+      "contents": [
+        {
+          "x": 160,
+          "y": 200
+        },
+        {
+          "x": 440,
+          "y": 200,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  }
+}

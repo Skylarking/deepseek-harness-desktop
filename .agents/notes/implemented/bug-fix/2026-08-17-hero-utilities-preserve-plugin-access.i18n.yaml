@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-17-hero-utilities-preserve-plugin-access.md
+2026-08-17-hero-utilities-preserve-plugin-access.md: a74db7f8fac6959fd76980984c618d8e8d035d89
+2026-08-17-hero-utilities-preserve-plugin-access.zh.md: d56b9a875dc0849f0684804dae23ab70b0c56219

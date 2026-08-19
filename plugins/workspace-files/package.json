@@ -1,0 +1,59 @@
+{
+  "name": "@deepseek-ai/dsh-workspace-files",
+  "description": "Installable workspace file browser for DeepSeek Harness Desktop",
+  "version": "0.1.0-rc.7",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "plugins/workspace-files"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "cordis.patch.yml",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "desktop": {
+      "supportPackages": {
+        "@deepseek-ai/dsh-client-ui-layout": "../shared/workspace-layout",
+        "@deepseek-ai/dsh-client-ui-workspace-files": "./packages/client",
+        "@deepseek-ai/dsh-host-workspace-files": "./packages/host"
+      }
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-client-ui-workspace-files": "workspace:^",
+    "@deepseek-ai/dsh-host-workspace-files": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-invariants": "workspace:^"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-invariants": "workspace:^"
+  }
+}

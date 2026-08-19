@@ -1,6 +1,11 @@
 packages:
   - vendor/*
   - packages/*/*
+  # Repository-tracked out-of-tree plugins. They participate in development
+  # checks but are not dependencies of the shipped DSH or Desktop runtime.
+  - plugins/workspace-*
+  - plugins/workspace-*/packages/*
+  - plugins/shared/*
   # The Landlock launcher is developed with its harness consumers but keeps
   # its native build and publication scripts under native/landlock-run.
   - native/landlock-run
@@ -38,6 +43,10 @@ peerDependencyRules:
 # default and only allow scripts we need. esbuild (native binary) and lefthook
 # (git hooks) genuinely need theirs.
 allowBuilds:
+  # Electron's installer downloads the reviewed macOS runtime used by apps/desktop.
+  electron: true
+  # Windows-only Squirrel helper; the macOS build never invokes its 7zip selector.
+  electron-winstaller: false
   esbuild: true
   lefthook: true
   # Cross-platform boundary for the persistent PTY backend, including ConPTY on Windows.
@@ -53,7 +62,6 @@ allowBuilds:
   # The Python runtime deploy includes the reviewed workspace postinstall that
   # restores the executable bit on node-pty's macOS spawn helper.
   '@deepseek-ai/dsh-subprocess-local@file:packages/subprocess/subprocess-local': true
-
 minimumReleaseAgeExclude:
   # Fresh pi-ai releases carry the model catalog updates that are the whole
   # point of bumping it; waiting out the release age would defeat that.

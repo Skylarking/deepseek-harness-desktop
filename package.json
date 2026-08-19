@@ -11,6 +11,9 @@
   "workspaces": [
     "vendor/*",
     "packages/*/*",
+    "plugins/workspace-*",
+    "plugins/workspace-*/packages/*",
+    "plugins/shared/*",
     "native/landlock-run",
     "native/landlock-run/packages/*",
     "apps/*",
@@ -140,6 +143,8 @@
     "demo:acp": "node --import tsx packages/examples/acp-demo/src/bin.ts --config examples/acp-agent/cordis.yml",
     "mock:llm": "node --import tsx packages/test-support/llm-mock-server/src/bin.ts",
     "dev:web": "tsx scripts/dev-web.ts --poll",
+    "desktop:dev": "pnpm --filter @deepseek-ai/dsh-desktop dev",
+    "desktop:package": "pnpm --filter @deepseek-ai/dsh-desktop package:mac",
     "postinstall": "node scripts/install-lefthook.mjs"
   },
   "devDependencies": {

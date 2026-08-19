@@ -11,6 +11,8 @@
     "sandbox-exec",
     "tar",
     "taskkill",
+    "iconutil",
+    "sips",
     "where.exe"
   ],
   "ignoreWorkspaces": [
@@ -740,6 +742,18 @@
         "@deepseek-ai/.+"
       ]
     },
+    "apps/desktop": {
+      "entry": [
+        "scripts/*.ts",
+        "src/renderer/*.ts",
+        "tests/**/*.spec.ts"
+      ],
+      "project": [
+        "scripts/**/*.ts",
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
     "packages/client/modules": {
       "entry": [
         "tests/**/*.spec.ts"
@@ -779,6 +793,21 @@
       ]
     },
     "packages/bundle/web-app": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    },
+    "plugins/workspace-console": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    },
+    "plugins/workspace-files": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    },
+    "plugins/shared/workspace-layout": {
       "ignoreDependencies": [
         "@deepseek-ai/.+"
       ]

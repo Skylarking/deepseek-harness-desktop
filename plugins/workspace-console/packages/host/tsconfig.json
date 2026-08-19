@@ -1,0 +1,11 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": "lib/types" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../../vendor/cordis" }, { "path": "../../../../vendor/schemastery" },
+    { "path": "../../../../packages/workspace/workspace" }, { "path": "../../../../packages/runtime-diagnostics/invariants" },
+    { "path": "../../../../packages/util/brand" }, { "path": "../../../../packages/subprocess/subprocess" },
+    { "path": "../../../../packages/typert/protocol" }
+  ]
+}
