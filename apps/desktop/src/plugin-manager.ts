@@ -10,6 +10,7 @@ import { dshNodeArgs } from './dsh-process.ts'
 interface ProfileManifest {
   dependencies?: Record<string, string>
   dsh?: {
+    bundle?: { patch?: unknown }
     profile?: { bundles?: unknown }
     desktop?: {
       overlay?: unknown
@@ -21,6 +22,8 @@ interface ProfileManifest {
     settings?: { namespaces?: unknown }
   }
 }
+
+type DesktopPackageKind = DesktopPlugin['kind']
 
 /** Remove obsolete Desktop-owned bundle links without touching externally installed replacements. */
 export async function removeRetiredDesktopDefaults(profileDir: string, runtimeEntry: string): Promise<string[]> {
@@ -180,7 +183,23 @@ export async function cleanupProfilePluginLink(profileDir: string, name: string)
   await unlink(installed)
 }
 
-/** Read user-installed bundles in profile order, excluding built-in bundle layers. */
+async function installedPackageKind(packageDir: string): Promise<DesktopPackageKind> {
+  const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8')) as ProfileManifest
+  if (typeof manifest.dsh?.bundle?.patch === 'string' && manifest.dsh.bundle.patch.length > 0) return 'bundle'
+  try {
+    await readFile(join(packageDir, 'skill', 'SKILL.md'), 'utf8')
+    return 'skill'
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return 'package'
+    throw error
+  }
+}
+
+function installedPackageDir(profileDir: string, name: string, spec: string): string {
+  return localPluginPath(spec, profileDir) ?? resolve(profileDir, 'node_modules', ...name.split('/'))
+}
+
+/** Read user-installed profile packages while preserving bundle order. */
 export async function listProfilePlugins(profileDir: string): Promise<DesktopPlugin[]> {
   const manifestPath = join(profileDir, 'package.json')
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ProfileManifest
@@ -206,12 +225,16 @@ export async function setProfilePluginEnabled(profileDir: string, name: string, 
   if (!/^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/iu.test(name)) throw new Error(`Invalid plugin package name: ${name}`)
   const manifestPath = join(profileDir, 'package.json')
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ProfileManifest
-  if (manifest.dependencies?.[name] === undefined) throw new Error(`Plugin is not installed: ${name}`)
+  const dependencies = manifest.dependencies
+  const spec = dependencies?.[name]
+  if (dependencies === undefined || spec === undefined) throw new Error(`Plugin is not installed: ${name}`)
+  const kind = await installedPackageKind(installedPackageDir(profileDir, name, spec))
+  if (enabled && kind !== 'bundle') throw new Error(`Cannot enable non-bundle package: ${name}`)
   manifest.dsh ??= {}
   manifest.dsh.profile ??= {}
   const bundles = Array.isArray(manifest.dsh.profile.bundles)
     ? manifest.dsh.profile.bundles.filter((value): value is string => typeof value === 'string')
-    : Object.keys(manifest.dependencies)
+    : Object.keys(dependencies)
   manifest.dsh.profile.bundles = enabled
     ? [...bundles.filter(bundle => bundle !== name), name]
     : bundles.filter(bundle => bundle !== name)
@@ -228,6 +251,7 @@ async function readPlugin(
   const packageDir = localPath ?? resolve(profileDir, 'node_modules', name)
   try {
     const packageManifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8')) as ProfileManifest
+    const kind = await installedPackageKind(packageDir)
     const overlay = desktopOverlay(packageManifest.dsh?.desktop?.overlay)
     const ownedSettings = settingsNamespaces(packageManifest.dsh?.settings?.namespaces)
     const ownedSupport = supportPackages(packageManifest.dsh?.desktop?.supportPackages, packageDir)
@@ -247,15 +271,36 @@ async function readPlugin(
     return {
       name,
       spec,
-      enabled,
+      kind,
+      enabled: kind === 'bundle' && enabled,
       ...(localPath === undefined ? {} : { localPath }),
       ...(safeOverlay === undefined ? {} : { desktopOverlay: safeOverlay }),
       ...(ownedSettings === undefined ? {} : { settingsNamespaces: ownedSettings }),
       ...(ownedSupport === undefined ? {} : { supportPackages: ownedSupport }),
     }
   } catch {
-    return { name, spec, enabled, ...(localPath === undefined ? {} : { localPath }) }
+    return { name, spec, kind: 'package', enabled: false, ...(localPath === undefined ? {} : { localPath }) }
   }
+}
+
+async function removeInvalidProfileBundles(profileDir: string): Promise<void> {
+  const manifestPath = join(profileDir, 'package.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ProfileManifest
+  const bundles = Array.isArray(manifest.dsh?.profile?.bundles)
+    ? manifest.dsh.profile.bundles.filter((value): value is string => typeof value === 'string')
+    : []
+  const dependencies = manifest.dependencies ?? {}
+  const valid: string[] = []
+  for (const name of bundles) {
+    const spec = dependencies[name]
+    if (spec === undefined || await installedPackageKind(installedPackageDir(profileDir, name, spec)) === 'bundle') {
+      valid.push(name)
+    }
+  }
+  if (valid.length === bundles.length) return
+  manifest.dsh ??= {}
+  manifest.dsh.profile = { ...manifest.dsh.profile, bundles: valid }
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 }
 
 /** Reconcile profile-local package aliases required by enabled Desktop plugins. */
@@ -266,6 +311,7 @@ export async function syncProfileSupportPackages(
   command: typeof runPluginCommand = runPluginCommand,
   required: Readonly<Record<string, string>> = {},
 ): Promise<void> {
+  await removeInvalidProfileBundles(profileDir)
   const plugins = await listProfilePlugins(profileDir)
   const desired = new Map<string, string>(Object.entries(required))
   for (const plugin of plugins) {

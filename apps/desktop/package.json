@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-client-ui-theme": "workspace:^",
     "@types/node": "^22.20.0",
     "electron": "43.4.0",
     "electron-builder": "26.15.3",

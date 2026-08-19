@@ -60,6 +60,10 @@ describe('plugin profile discovery', () => {
   it('keeps profile bundle order and exposes only dependency-backed custom plugins', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-profile-'))
     await mkdir(join(root, 'plugin'))
+    await mkdir(join(root, 'node_modules', 'registry'), { recursive: true })
+    const bundleManifest = JSON.stringify({ dsh: { bundle: { patch: './cordis.patch.yml' } } })
+    await writeFile(join(root, 'plugin', 'package.json'), bundleManifest)
+    await writeFile(join(root, 'node_modules', 'registry', 'package.json'), bundleManifest)
     await writeFile(join(root, 'package.json'), JSON.stringify({
       dependencies: {
         local: 'link:./plugin',
@@ -69,25 +73,28 @@ describe('plugin profile discovery', () => {
     }))
 
     await expect(listProfilePlugins(root)).resolves.toEqual([
-      { name: 'registry', spec: '^1.2.3', enabled: true },
-      { name: 'local', spec: 'link:./plugin', enabled: true, localPath: join(root, 'plugin') },
+      { name: 'registry', spec: '^1.2.3', kind: 'bundle', enabled: true },
+      { name: 'local', spec: 'link:./plugin', kind: 'bundle', enabled: true, localPath: join(root, 'plugin') },
     ])
   })
 
-  it('keeps installed dependencies visible when disabled and can re-enable them', async () => {
+  it('keeps disabled bundles visible and can re-enable them', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-enable-plugin-'))
     await mkdir(join(root, 'plugin'))
+    await writeFile(join(root, 'plugin', 'package.json'), JSON.stringify({
+      dsh: { bundle: { patch: './cordis.patch.yml' } },
+    }))
     await writeFile(join(root, 'package.json'), JSON.stringify({
       dependencies: { local: 'link:./plugin' },
       dsh: { profile: { bundles: [] } },
     }))
 
     await expect(listProfilePlugins(root)).resolves.toEqual([{
-      name: 'local', spec: 'link:./plugin', enabled: false, localPath: join(root, 'plugin'),
+      name: 'local', spec: 'link:./plugin', kind: 'bundle', enabled: false, localPath: join(root, 'plugin'),
     }])
     await setProfilePluginEnabled(root, 'local', true)
     await expect(listProfilePlugins(root)).resolves.toEqual([{
-      name: 'local', spec: 'link:./plugin', enabled: true, localPath: join(root, 'plugin'),
+      name: 'local', spec: 'link:./plugin', kind: 'bundle', enabled: true, localPath: join(root, 'plugin'),
     }])
     await setProfilePluginEnabled(root, 'local', false)
     const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
@@ -98,6 +105,50 @@ describe('plugin profile discovery', () => {
     expect(manifest.dsh.profile.bundles).toEqual([])
   })
 
+  it('classifies skill packages separately and refuses to enable them as bundles', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-skill-package-'))
+    const skillPackage = join(root, 'skill-package')
+    await mkdir(join(skillPackage, 'skill'), { recursive: true })
+    await writeFile(join(skillPackage, 'package.json'), JSON.stringify({ name: 'local-skill' }))
+    await writeFile(join(skillPackage, 'skill', 'SKILL.md'), '# Local skill\n')
+    await writeFile(join(root, 'package.json'), JSON.stringify({
+      dependencies: { 'local-skill': 'link:./skill-package' },
+      dsh: { profile: { bundles: [] } },
+    }))
+
+    await expect(listProfilePlugins(root)).resolves.toEqual([{
+      name: 'local-skill',
+      spec: 'link:./skill-package',
+      kind: 'skill',
+      enabled: false,
+      localPath: skillPackage,
+    }])
+    await expect(setProfilePluginEnabled(root, 'local-skill', true))
+      .rejects.toThrow('Cannot enable non-bundle package: local-skill')
+    const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    expect(manifest.dsh.profile.bundles).toEqual([])
+  })
+
+  it('removes dependency-backed non-bundles from a stale enabled list during Desktop sync', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-stale-package-'))
+    const plainPackage = join(root, 'plain-package')
+    await mkdir(plainPackage)
+    await writeFile(join(plainPackage, 'package.json'), JSON.stringify({ name: 'plain-package' }))
+    await writeFile(join(root, 'package.json'), JSON.stringify({
+      dependencies: { 'plain-package': 'link:./plain-package' },
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', 'plain-package'] } },
+    }))
+
+    await syncProfileSupportPackages(root, '/runtime/dsh.js', root, async () => {})
+
+    const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    expect(manifest.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base'])
+  })
+
   it('hides managed support aliases and removes the last one when its plugin is disabled', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-support-package-'))
     const plugin = join(root, 'plugin')
@@ -105,7 +156,10 @@ describe('plugin profile discovery', () => {
     await mkdir(plugin)
     await mkdir(support)
     await writeFile(join(plugin, 'package.json'), JSON.stringify({
-      dsh: { desktop: { supportPackages: { '@deepseek-ai/dsh-client-ui-layout': '../support' } } },
+      dsh: {
+        bundle: { patch: './cordis.patch.yml' },
+        desktop: { supportPackages: { '@deepseek-ai/dsh-client-ui-layout': '../support' } },
+      },
     }))
     await writeFile(join(root, 'package.json'), JSON.stringify({
       dependencies: { local: 'link:./plugin' },
@@ -136,6 +190,7 @@ describe('plugin profile discovery', () => {
     await expect(listProfilePlugins(root)).resolves.toEqual([{
       name: 'local',
       spec: 'link:./plugin',
+      kind: 'bundle',
       enabled: true,
       localPath: plugin,
       supportPackages: { '@deepseek-ai/dsh-client-ui-layout': support },
@@ -162,7 +217,10 @@ describe('plugin profile discovery', () => {
     const plugin = join(root, 'plugin')
     await mkdir(plugin)
     await writeFile(join(plugin, 'package.json'), JSON.stringify({
-      dsh: { desktop: { overlay: { entry: './desktop.html', width: 164, height: 164 } } },
+      dsh: {
+        bundle: { patch: './cordis.patch.yml' },
+        desktop: { overlay: { entry: './desktop.html', width: 164, height: 164 } },
+      },
     }))
     await writeFile(join(root, 'package.json'), JSON.stringify({
       dependencies: { local: 'link:./plugin' },
@@ -172,6 +230,7 @@ describe('plugin profile discovery', () => {
     await expect(listProfilePlugins(root)).resolves.toEqual([{
       name: 'local',
       spec: 'link:./plugin',
+      kind: 'bundle',
       enabled: true,
       localPath: plugin,
       desktopOverlay: { entry: join(plugin, 'desktop.html'), width: 164, height: 164 },
@@ -184,6 +243,7 @@ describe('plugin profile discovery', () => {
     await mkdir(plugin)
     await writeFile(join(plugin, 'package.json'), JSON.stringify({
       dsh: {
+        bundle: { patch: './cordis.patch.yml' },
         desktop: { overlay: {
           entry: 'dsh:web',
           width: 164,
@@ -202,6 +262,7 @@ describe('plugin profile discovery', () => {
     await expect(listProfilePlugins(root)).resolves.toEqual([{
       name: 'local',
       spec: 'link:./plugin',
+      kind: 'bundle',
       enabled: true,
       localPath: plugin,
       desktopOverlay: {

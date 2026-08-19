@@ -20,6 +20,8 @@ import type { DesktopPlugin, PluginMutationResult } from './contracts.ts'
 import { revealLoadingWindow, runDesktopBoot } from './desktop-boot.ts'
 import { DshProcess, resolveDshEntry } from './dsh-process.ts'
 import { configureOverlayWindow, overlayExpandedBounds, overlayWindowOptions } from './overlay-window.ts'
+import { pluginLocale } from './plugin-locale.ts'
+import { pluginWindowOptions } from './plugin-window.ts'
 import {
   cleanupPluginSettings, cleanupProfilePluginLink, listProfilePlugins,
   removeRetiredDesktopDefaults, resolveSettingsFile, resolveWebProfileDir,
@@ -30,8 +32,6 @@ import { isTrustedRendererFrame, isTrustedRuntimeFrame } from './window-security
 
 const APP_NAME = 'DeepSeek Harness'
 const DESKTOP_HOST_MARKER = 'dsh:desktop-host'
-const PLUGIN_WINDOW_WIDTH = 900
-const PLUGIN_WINDOW_HEIGHT = 660
 const PLUGIN_MANAGER_URL = pathToFileURL(join(import.meta.dirname, 'renderer', 'plugins.html')).href
 const DESKTOP_PLUGIN_INVENTORY = '@skylarking/dsh-client-ui-desktop-plugin-inventory'
 
@@ -250,7 +250,6 @@ async function restartRuntime(nextWorkspace?: string): Promise<void> {
 
 async function mutatePlugins(operation: () => Promise<void>, success: string): Promise<PluginMutationResult> {
   return await runtimeOperations.run(async () => {
-    await mainWindow?.loadURL(loadingPage('Updating plugins...'))
     closeDesktopOverlays()
     await runtime?.stop()
     runtime = undefined
@@ -284,63 +283,64 @@ function assertWebRenderer(event: IpcMainInvokeEvent): void {
 }
 
 async function installLocalPlugin(parent: BrowserWindow): Promise<PluginMutationResult> {
+  const copy = pluginLocale(app.getPreferredSystemLanguages()[0] ?? app.getLocale())
   const selection = await dialog.showOpenDialog(parent, {
-    title: 'Install Local DSH Plugin',
-    buttonLabel: 'Install',
+    title: copy.installTitle,
+    buttonLabel: copy.installLocal,
     properties: ['openDirectory'],
   })
   const selected = selection.filePaths[0]
-  if (selection.canceled || selected === undefined) return { changed: false, message: 'Installation canceled' }
+  if (selection.canceled || selected === undefined) return { changed: false, message: copy.installCanceled }
   return await mutatePlugins(
     async () => { await runPluginCommand(runtimeEntry, workspace, ['add', selected]) },
-    `Installed ${selected}`,
+    copy.installed(selected),
   )
 }
 
 async function removePlugin(parent: BrowserWindow, name: string): Promise<PluginMutationResult> {
+  const copy = pluginLocale(app.getPreferredSystemLanguages()[0] ?? app.getLocale())
   const profileDir = resolveWebProfileDir()
   const plugin = (await listProfilePlugins(profileDir)).find(candidate => candidate.name === name)
   if (plugin === undefined) throw new Error(`Plugin is not installed: ${name}`)
   const confirmation = await dialog.showMessageBox(parent, {
     type: 'warning',
-    buttons: ['Cancel', 'Remove'],
+    buttons: [copy.cancel, copy.remove],
     defaultId: 0,
     cancelId: 0,
-    title: 'Remove Plugin',
-    message: `Remove ${name} from the Web profile?`,
-    detail: 'The plugin source directory will not be deleted. Plugin-owned settings will be removed.',
+    title: copy.removeTitle,
+    message: copy.removeMessage(name),
+    detail: copy.removeDetail,
   })
-  if (confirmation.response !== 1) return { changed: false, message: 'Removal canceled' }
+  if (confirmation.response !== 1) return { changed: false, message: copy.removalCanceled }
   return await mutatePlugins(
     async () => {
       await runPluginCommand(runtimeEntry, workspace, ['remove', name])
       await cleanupPluginSettings(resolveSettingsFile(), plugin.settingsNamespaces ?? [])
       await cleanupProfilePluginLink(profileDir, name)
     },
-    `Removed ${name}`,
+    copy.removed(name),
   )
 }
 
 async function setPluginEnabled(parent: BrowserWindow, name: string, enabled: boolean): Promise<PluginMutationResult> {
+  const copy = pluginLocale(app.getPreferredSystemLanguages()[0] ?? app.getLocale())
   const plugin = (await listProfilePlugins(resolveWebProfileDir())).find(candidate => candidate.name === name)
   if (plugin === undefined) throw new Error(`Plugin is not installed: ${name}`)
-  if (plugin.enabled === enabled) return { changed: false, message: `${name} is already ${enabled ? 'enabled' : 'disabled'}` }
-  const action = enabled ? 'Enable' : 'Disable'
+  if (plugin.enabled === enabled) return { changed: false, message: copy.alreadyToggled(name, enabled) }
+  const action = enabled ? copy.enable : copy.disable
   const confirmation = await dialog.showMessageBox(parent, {
     type: 'question',
-    buttons: ['Cancel', action],
+    buttons: [copy.cancel, action],
     defaultId: 1,
     cancelId: 0,
-    title: `${action} Plugin`,
-    message: `${action} ${name}?`,
-    detail: enabled
-      ? 'The local runtime will restart and the plugin will regain its previous settings.'
-      : 'The local runtime will restart. The plugin remains installed and its settings are preserved.',
+    title: copy.toggleTitle(enabled),
+    message: copy.toggleMessage(name, enabled),
+    detail: copy.toggleDetail(enabled),
   })
-  if (confirmation.response !== 1) return { changed: false, message: `${action} canceled` }
+  if (confirmation.response !== 1) return { changed: false, message: copy.toggleCanceled(enabled) }
   return await mutatePlugins(
     async () => { await setProfilePluginEnabled(resolveWebProfileDir(), name, enabled) },
-    `${enabled ? 'Enabled' : 'Disabled'} ${name}`,
+    copy.toggleComplete(name, enabled),
   )
 }
 
@@ -349,6 +349,10 @@ function registerPluginIpc(): void {
   ipcMain.handle('desktop:plugins:list', async (event) => {
     assertPluginRenderer(event)
     return await listProfilePlugins(profileDir)
+  })
+  ipcMain.handle('desktop:plugins:locale', (event) => {
+    assertPluginRenderer(event)
+    return app.getPreferredSystemLanguages()[0] ?? app.getLocale()
   })
   ipcMain.handle('desktop:plugins:install', async (event) => {
     assertPluginRenderer(event)
@@ -413,25 +417,15 @@ function showPluginManager(): void {
     pluginWindow.focus()
     return
   }
-  pluginWindow = new BrowserWindow({
-    width: PLUGIN_WINDOW_WIDTH,
-    height: PLUGIN_WINDOW_HEIGHT,
-    minWidth: 640,
-    minHeight: 480,
-    title: 'DSH Plugins',
-    backgroundColor: '#f5f6f7',
-    webPreferences: {
-      preload: join(import.meta.dirname, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
+  const parent = mainWindow
+  if (parent === undefined) return
+  pluginWindow = new BrowserWindow(pluginWindowOptions(parent, join(import.meta.dirname, 'preload.cjs')))
   pluginWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   pluginWindow.webContents.on('will-navigate', (event, url) => {
     if (url !== PLUGIN_MANAGER_URL) event.preventDefault()
   })
   pluginWindow.on('closed', () => { pluginWindow = undefined })
+  pluginWindow.once('ready-to-show', () => { pluginWindow?.show() })
   void pluginWindow.loadURL(PLUGIN_MANAGER_URL)
 }
 

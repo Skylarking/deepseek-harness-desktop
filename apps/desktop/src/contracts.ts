@@ -13,6 +13,7 @@ export interface DesktopOverlayManifest {
 export interface DesktopPlugin {
   name: string
   spec: string
+  kind: 'bundle' | 'skill' | 'package'
   enabled: boolean
   localPath?: string
   desktopOverlay?: DesktopOverlayManifest
@@ -21,7 +22,7 @@ export interface DesktopPlugin {
   supportPackages?: Record<string, string>
 }
 
-/** Plugin-manager row for one installed profile plugin. */
+/** Plugin-manager row for one installed profile package. */
 export type DesktopManagedPlugin = DesktopPlugin
 
 /** Result of a plugin-changing command. */
@@ -34,6 +35,7 @@ export interface PluginMutationResult {
 export interface DesktopPluginApi {
   installLocal(): Promise<PluginMutationResult>
   list(): Promise<DesktopManagedPlugin[]>
+  locale(): Promise<string>
   openProfile(): Promise<void>
   openSource(name: string): Promise<void>
   remove(name: string): Promise<PluginMutationResult>

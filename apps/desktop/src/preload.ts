@@ -5,6 +5,7 @@ import type { DesktopPluginApi } from './contracts.ts'
 const api: DesktopPluginApi = {
   installLocal: async () => await ipcRenderer.invoke('desktop:plugins:install') as Awaited<ReturnType<DesktopPluginApi['installLocal']>>,
   list: async () => await ipcRenderer.invoke('desktop:plugins:list') as Awaited<ReturnType<DesktopPluginApi['list']>>,
+  locale: async () => await ipcRenderer.invoke('desktop:plugins:locale') as string,
   openProfile: async () => { await ipcRenderer.invoke('desktop:plugins:open-profile') },
   openSource: async (name) => { await ipcRenderer.invoke('desktop:plugins:open-source', name) },
   remove: async name => await ipcRenderer.invoke('desktop:plugins:remove', name) as Awaited<ReturnType<DesktopPluginApi['remove']>>,

@@ -10,7 +10,7 @@
   <body>
     <header class="toolbar">
       <div>
-        <h1>Plugins</h1>
+        <h1 id="page-title">Plugins</h1>
         <p id="summary">Loading profile...</p>
       </div>
       <div class="toolbar-actions">
@@ -22,13 +22,21 @@
     <main>
       <div id="notice" role="status" aria-live="polite"></div>
       <section class="plugin-group" aria-labelledby="installed-heading">
-        <h2 id="installed-heading">Installed plugins</h2>
+        <h2 id="installed-heading">Plugins</h2>
         <div id="plugins"></div>
+      </section>
+      <section id="skills-group" class="plugin-group" aria-labelledby="skills-heading" hidden>
+        <h2 id="skills-heading">Skill packages</h2>
+        <div id="skills"></div>
+      </section>
+      <section id="packages-group" class="plugin-group" aria-labelledby="packages-heading" hidden>
+        <h2 id="packages-heading">Other packages</h2>
+        <div id="packages"></div>
       </section>
       <div id="empty" hidden>
         <i data-lucide="puzzle"></i>
-        <h2>No custom plugins installed</h2>
-        <p>Install a local plugin folder to add it to the Web profile.</p>
+        <h2 id="empty-title">No custom plugins installed</h2>
+        <p id="empty-description">Install a local package to add it to the Web profile.</p>
       </div>
     </main>
     <script type="module" src="./plugins.ts"></script>
