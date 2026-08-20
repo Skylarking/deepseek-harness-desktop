@@ -1,6 +1,13 @@
 CLAUDE.local.md
 .env
 node_modules/
+plugins/codex-pets/
+plugins/chat-renderer/
+plugins/workspace-multi/
+plugins/workspace-console/
+plugins/workspace-files/
+plugins/shared/desktop-plugin-inventory/
+plugins/shared/workspace-layout/
 lib/
 *.tsbuildinfo
 pnpm-debug.log

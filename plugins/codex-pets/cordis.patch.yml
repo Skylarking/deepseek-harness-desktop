@@ -1,7 +1,0 @@
-- insert:
-    - id: codex-pets
-      name: codex-pets
-      config:
-        activePet: fanqiechaodan-jiaran
-        enabled: true
-        scale: 1

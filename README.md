@@ -60,7 +60,7 @@ Reversibility follows ownership recorded in manifests instead of relying on code
 
 ## Plugins
 
-Workspace files, Terminal, and Codex pets are repository-tracked external plugins. They are not included in the Desktop release and appear only after the user installs their local plugin directories. Each plugin owns the interface and runtime resources described below, and plugin management removes those contributions when the plugin is disabled or uninstalled.
+Workspace files, Terminal, and Codex pets are external plugins. Their source repositories are maintained separately from Desktop in the [DSH Plugins collection](https://github.com/Skylarking/dsh-plugins), where each plugin is tracked as an independent Git submodule. They are not included in the Desktop release and appear only after the user installs them through the plugin manager.
 
 ### Project files
 
@@ -74,7 +74,7 @@ The Terminal plugin adds a resizable bottom panel with multiple terminal tabs. E
 
 The optional Codex pets plugin loads Codex-compatible `pet.json` assets and displays an animated companion above other applications and full-screen Spaces. It supports pet selection, scaling, dragging, and Session activity states. Removing the plugin also removes its window and settings without deleting user-installed pet assets.
 
-See the [workspace files reference](plugins/workspace-files/README.md), [Terminal reference](plugins/workspace-console/README.md), [desktop application reference](apps/desktop/README.md), and [pet plugin reference](plugins/codex-pets/README.md) for detailed behavior and limitations.
+See the [DSH Plugins collection](https://github.com/Skylarking/dsh-plugins) for plugin source, installation, and individual behavior references. The [desktop application reference](apps/desktop/README.md) documents the host-side plugin lifecycle.
 
 <a id="run"></a>
 
