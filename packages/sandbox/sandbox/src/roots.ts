@@ -1,7 +1,7 @@
 /**
  * The writable-root derivation shared by every enforcement dialect that
  * expresses a mode as a canonical allow-list: `workspace-write` means "the
- * project roots plus the platform temp areas", and this module is that
+ * workspace root plus the platform temp areas", and this module is that
  * meaning's one home. The Seatbelt profile
  * (`@deepseek-ai/dsh-sandbox-local`) and the in-process filesystem fence
  * (`@deepseek-ai/dsh-fs-sandbox`) both derive their allow-list here, so "the
@@ -41,19 +41,9 @@ export function canonicalPath(path: string): string {
 }
 
 /**
- * Resolve the project directories one `workspace-write` execution may modify.
- * @param policy - The file-effect policy to derive project roots from.
- * @returns canonical, deduplicated project roots; empty under other modes.
- */
-export function workspaceWritableRoots(policy: SandboxExecutionPolicy): string[] {
-  if (policy.mode !== 'workspace-write') return []
-  return [...new Set([policy.workspaceRoot, ...(policy.additionalWritableRoots ?? [])].map(canonicalPath))]
-}
-
-/**
  * The roots one confined execution may WRITE under — the mode's meaning as a
  * canonical, deduplicated allow-list. `read-only` allows nothing;
- * `workspace-write` allows the policy's project roots, the host `/tmp`, and
+ * `workspace-write` allows the policy's workspace root, the host `/tmp`, and
  * the per-user platform temp dir (`os.tmpdir()` — the real temp area for
  * mkstemp-family tools; omitting it would deny what the mode promises).
  * @param policy - the file-effect policy to derive the allow-list from.
@@ -61,5 +51,5 @@ export function workspaceWritableRoots(policy: SandboxExecutionPolicy): string[]
  */
 export function writableRoots(policy: SandboxExecutionPolicy): string[] {
   if (policy.mode !== 'workspace-write') return []
-  return [...new Set([...workspaceWritableRoots(policy), '/tmp', tmpdir()].map(canonicalPath))]
+  return [...new Set([policy.workspaceRoot, '/tmp', tmpdir()].map(canonicalPath))]
 }

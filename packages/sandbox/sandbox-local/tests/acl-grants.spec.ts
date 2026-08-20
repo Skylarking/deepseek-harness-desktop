@@ -143,32 +143,6 @@ describe('windows-acl write grants (LocalSandboxProvider)', () => {
     }
   })
 
-  it('applies one standing write capability to every attached project root', async () => {
-    try {
-      const { sandbox, fiber } = await setup()
-      const primary = workspaceRoot()
-      const secondary = workspaceRoot()
-      scratch.push(primary, secondary)
-      sandbox.confine(['true'], {
-        mode: 'workspace-write',
-        workspaceRoot: primary,
-        additionalWritableRoots: [secondary],
-        sessionId: SessionId('multi-root'),
-      })
-
-      expect(mockState.grants[0]).toEqual(expect.objectContaining({
-        writeSid: WORKSPACE_SID,
-        added: [
-          { path: primary, standing: true },
-          { path: secondary, standing: true },
-        ],
-      }))
-      await fiber.dispose()
-    } finally {
-      cleanup()
-    }
-  })
-
   it('read-only materializes no capability; upgrade creates them and downgrade leaves them reusable', async () => {
     try {
       const { sandbox, fiber } = await setup()

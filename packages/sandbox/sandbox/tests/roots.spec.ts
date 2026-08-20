@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { canonicalPath, workspaceWritableRoots, writableRoots } from '@deepseek-ai/dsh-sandbox'
+import { canonicalPath, writableRoots } from '@deepseek-ai/dsh-sandbox'
 
 describe('canonicalPath', () => {
   it('resolves symlinks (an existing path realpaths)', () => {
@@ -35,23 +35,5 @@ describe('writableRoots', () => {
     expect(roots).toContain(realpathSync.native(tmpdir()))
     // Deduplicated after canonicalization (/tmp and os.tmpdir() may coincide).
     expect(new Set(roots).size).toBe(roots.length)
-  })
-
-  it('workspace-write grants every canonical project root once', () => {
-    const primary = mkdtempSync(join(tmpdir(), 'dsh-primary-'))
-    const secondary = mkdtempSync(join(tmpdir(), 'dsh-secondary-'))
-    const policy = {
-      mode: 'workspace-write' as const,
-      workspaceRoot: primary,
-      additionalWritableRoots: [secondary, primary, secondary],
-    }
-    expect(workspaceWritableRoots(policy)).toEqual([
-      realpathSync.native(primary),
-      realpathSync.native(secondary),
-    ])
-    expect(writableRoots(policy)).toEqual(expect.arrayContaining([
-      realpathSync.native(primary),
-      realpathSync.native(secondary),
-    ]))
   })
 })

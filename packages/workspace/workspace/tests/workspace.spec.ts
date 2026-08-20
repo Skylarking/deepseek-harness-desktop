@@ -691,21 +691,27 @@ describe('Workspace session ordering', () => {
     expect(result.list).toHaveBeenCalledTimes(1)
   })
 
-  it('accepts known sessions independently of their immutable cwd and rejects unknown or already owned ids', async () => {
+  it('rejects mismatched, missing, unresolved, non-directory, and unknown cwd facts', async () => {
     const dir = await makeDir('strict')
     const elsewhere = await makeDir('elsewhere')
+    const gone = await makeDir('gone')
+    const file = join(base, 'cwd-file')
+    await writeFile(file, 'file')
     const result = await harness()
     result.setSessions([
       header('mismatch', elsewhere),
       header('no-cwd'),
+      header('gone', gone),
+      header('file', file),
     ])
+    await rm(gone, { recursive: true })
     const workspace = await result.registry.create(dir)
-    const otherWorkspace = await result.registry.create(elsewhere)
-    await workspace.attachSession(SessionId('mismatch'))
-    await workspace.attachSession(SessionId('no-cwd'))
-    await expect(otherWorkspace.attachSession(SessionId('mismatch'))).rejects.toThrow(/already accounts it/)
+    await expect(workspace.attachSession(SessionId('mismatch'))).rejects.toThrow(/resolves to/)
+    await expect(workspace.attachSession(SessionId('no-cwd'))).rejects.toThrow(/no cwd/)
+    await expect(workspace.attachSession(SessionId('gone'))).rejects.toThrow(/does not resolve/)
+    await expect(workspace.attachSession(SessionId('file'))).rejects.toThrow(/not a directory/)
     await expect(workspace.attachSession(SessionId('unknown'))).rejects.toThrow(/no such session/)
-    expect(workspace.sessionIds).toEqual(['no-cwd', 'mismatch'])
+    expect(workspace.sessionIds).toEqual([])
   })
 
   it('decides detach/attach membership at domain write-chain slots', async () => {
@@ -719,26 +725,10 @@ describe('Workspace session ordering', () => {
     expect(workspace.sessionIds).toEqual(['s1'])
   })
 
-  it('serializes competing attaches so one session cannot enter two workspaces', async () => {
-    const firstDir = await makeDir('ownership-race-first')
-    const secondDir = await makeDir('ownership-race-second')
-    const result = await harness({ sessions: [header('shared', firstDir)] })
-    const first = await result.registry.create(firstDir)
-    const second = await result.registry.create(secondDir)
-
-    const settled = await Promise.allSettled([
-      first.attachSession(SessionId('shared')),
-      second.attachSession(SessionId('shared')),
-    ])
-    expect(settled.filter(item => item.status === 'fulfilled')).toHaveLength(1)
-    expect(settled.filter(item => item.status === 'rejected')).toHaveLength(1)
-    expect([...first.sessionIds, ...second.sessionIds]).toEqual(['shared'])
-  })
-
 })
 
-describe('stable workspace membership', () => {
-  it('keeps stored session ownership when the primary path changes', async () => {
+describe('header-validated membership projection', () => {
+  it('requires both candidate id and matching canonical cwd without re-reading on list()', async () => {
     const owned = await makeDir('owned')
     const elsewhere = await makeDir('projection-elsewhere')
     const id = WorkspaceId('00000000-0000-4000-8000-000000000001')
@@ -755,32 +745,14 @@ describe('stable workspace membership', () => {
       ],
     })
     const workspace = result.registry.list()[0]!
-    expect(workspace.sessionIds).toEqual(['good', 'mismatch', 'missing'])
-    expect(result.registry.list()[0]!.sessionIds).toEqual(['good', 'mismatch', 'missing'])
+    expect(workspace.sessionIds).toEqual(['good'])
+    expect(result.registry.list()[0]!.sessionIds).toEqual(['good'])
     expect(result.list).toHaveBeenCalledTimes(1)
     expect(storedRecord(pool, id).sessionIds).toEqual(['good', 'mismatch', 'missing'])
 
-    await result.registry.setPath(id, elsewhere)
-    expect(workspace.path).toBe(elsewhere)
-    expect(workspace.sessionIds).toEqual(['good', 'mismatch', 'missing'])
-    expect(storedRecord(pool, id).path).toBe(elsewhere)
+    await workspace.setTitle('pruned')
+    expect(storedRecord(pool, id).sessionIds).toEqual(['good'])
     expect(workspace.sessionIds).not.toContain('cwd-only')
-  })
-
-  it('validates and canonicalizes primary path changes without allowing duplicate primary folders', async () => {
-    const first = await makeDir('set-path-first')
-    const second = await makeDir('set-path-second')
-    const file = join(base, 'set-path-file')
-    await writeFile(file, 'file')
-    const result = await harness()
-    const workspace = await result.registry.create(first)
-    const holder = await result.registry.create(second)
-
-    await expect(result.registry.setPath(workspace.id, file)).rejects.toThrow(/not a directory/)
-    await expect(result.registry.setPath(workspace.id, second)).rejects.toThrow(/already owns it/)
-    await expect(result.registry.setPath(WorkspaceId('missing'), first)).rejects.toThrow(/unknown workspace/)
-    expect(workspace.path).toBe(first)
-    expect(holder.path).toBe(second)
   })
 
   it('rejects duplicate candidate ownership, duplicate paths, and initialized order drift', async () => {

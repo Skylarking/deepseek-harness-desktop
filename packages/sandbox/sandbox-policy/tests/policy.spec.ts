@@ -84,25 +84,6 @@ describe('SandboxPolicyService', () => {
     })
   })
 
-  it('resolves current additional roots from registered providers and removes disposed contributions', async () => {
-    const ctx = await mounted({ mode: 'workspace-write', workspaceRoot: '/fallback' })
-    const active = session('sess-project', '/projects/primary')
-    let roots = ['/projects/secondary', '/projects/primary', '/projects/secondary']
-    const dispose = ctx.sandboxPolicy.registerAdditionalWritableRoots(() => roots)
-
-    expect(ctx.sandboxPolicy.resolve({ session: active })).toEqual({
-      mode: 'workspace-write',
-      workspaceRoot: resolve('/projects/primary'),
-      additionalWritableRoots: [resolve('/projects/secondary')],
-      sessionId: 'sess-project',
-    })
-    roots = ['/projects/other']
-    expect(ctx.sandboxPolicy.resolve({ session: active }).additionalWritableRoots)
-      .toEqual([resolve('/projects/other')])
-    dispose()
-    expect(ctx.sandboxPolicy.resolve({ session: active }).additionalWritableRoots).toBeUndefined()
-  })
-
   it.skipIf(process.platform === 'win32')('resolves a symlink-sensitive session cwd with POSIX component semantics', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-policy-cwd-'))
     try {
