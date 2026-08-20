@@ -19,7 +19,12 @@ import {
 import type { DesktopPlugin, PluginMutationResult } from './contracts.ts'
 import { revealLoadingWindow, runDesktopBoot } from './desktop-boot.ts'
 import { DshProcess, resolveDshEntry } from './dsh-process.ts'
-import { configureOverlayWindow, overlayExpandedBounds, overlayWindowOptions } from './overlay-window.ts'
+import {
+  configureOverlayWindow,
+  destroyOverlayWindow,
+  overlayExpandedBounds,
+  overlayWindowOptions,
+} from './overlay-window.ts'
 import { pluginLocale } from './plugin-locale.ts'
 import { pluginWindowOptions } from './plugin-window.ts'
 import {
@@ -152,15 +157,20 @@ function showDesktopOverlay(plugin: DesktopPlugin): void {
     ? runtimeUrl === undefined ? undefined : new URL(runtimeUrl)
     : new URL(pathToFileURL(overlay.entry).href)
   if (url === undefined) {
-    window.close()
+    destroyOverlayWindow(window)
     return
   }
   if (overlay.entry === 'dsh:web') url.searchParams.set('dsh-desktop-overlay', plugin.name)
-  void window.loadURL(url.href).then(() => { window.showInactive() })
+  void window.loadURL(url.href).then(() => {
+    if (!window.isDestroyed() && desktopWindows.get(plugin.name) === window) window.showInactive()
+  })
 }
 
 function hideDesktopOverlay(name: string): void {
-  desktopWindows.get(name)?.close()
+  const window = desktopWindows.get(name)
+  if (window === undefined) return
+  desktopWindows.delete(name)
+  destroyOverlayWindow(window)
 }
 
 function closeDesktopOverlays(): void {

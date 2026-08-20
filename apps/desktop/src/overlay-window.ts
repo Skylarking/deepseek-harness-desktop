@@ -9,6 +9,11 @@ interface ConfigurableOverlayWindow {
   }): void
 }
 
+interface DestroyableOverlayWindow {
+  destroy(): void
+  isDestroyed(): boolean
+}
+
 /** Build the sandboxed native window options for one plugin-owned overlay. */
 export function overlayWindowOptions(
   overlay: DesktopOverlayManifest,
@@ -33,6 +38,7 @@ export function overlayWindowOptions(
     ...(platform === 'darwin' ? {
       acceptFirstMouse: true,
       enableLargerThanScreen: true,
+      hiddenInMissionControl: true,
       type: 'panel' as const,
     } : {}),
     webPreferences: {
@@ -42,6 +48,15 @@ export function overlayWindowOptions(
       sandbox: true,
     },
   }
+}
+
+/**
+ * Force a plugin overlay to quiescence before replacing its backing runtime.
+ * @param window - overlay window owned by the current runtime.
+ * @returns Nothing after the window is destroyed or was already destroyed.
+ */
+export function destroyOverlayWindow(window: DestroyableOverlayWindow): void {
+  if (!window.isDestroyed()) window.destroy()
 }
 
 /** Keep a plugin overlay above applications and macOS full-screen Spaces without taking focus. */

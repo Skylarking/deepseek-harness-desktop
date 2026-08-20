@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { configureOverlayWindow, overlayExpandedBounds, overlayWindowOptions } from '../src/overlay-window.ts'
+import {
+  configureOverlayWindow,
+  destroyOverlayWindow,
+  overlayExpandedBounds,
+  overlayWindowOptions,
+} from '../src/overlay-window.ts'
 
 describe('desktop overlay window', () => {
   it('loads the narrow preload bridge in an isolated transparent window', () => {
@@ -17,6 +22,7 @@ describe('desktop overlay window', () => {
       height: 164,
       type: 'panel',
       acceptFirstMouse: true,
+      hiddenInMissionControl: true,
       transparent: true,
       alwaysOnTop: true,
       webPreferences: {
@@ -58,7 +64,21 @@ describe('desktop overlay window', () => {
     }, 'win32')
 
     expect(options.type).toBeUndefined()
+    expect(options.hiddenInMissionControl).toBeUndefined()
     expect(calls).toEqual([['setAlwaysOnTop', true, 'floating']])
+  })
+
+  it('force-destroys a live overlay before its runtime is replaced', () => {
+    let destroyCalls = 0
+    const window = {
+      destroy: () => { destroyCalls += 1 },
+      isDestroyed: () => destroyCalls > 0,
+    }
+
+    destroyOverlayWindow(window)
+    destroyOverlayWindow(window)
+
+    expect(destroyCalls).toBe(1)
   })
 
   it('uses plugin-owned sizes and preserves the bottom-right anchor', () => {

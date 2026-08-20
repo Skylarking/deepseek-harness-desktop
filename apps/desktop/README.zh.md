@@ -22,7 +22,7 @@ pnpm desktop:dev
 
 具有权限的插件管理 renderer 只加载一个随应用打包的 `file://` 文档，并通过窄 preload API 工作。主 Web renderer 获得第二条 bridge，但只允许列出、本地插件安装、启停和经确认的移除；IPC 仅接受来自所属主 `webContents` 且处于当前 loopback origin 的调用。本地安装会打开原生目录选择器，启用、停用和卸载都需要原生确认后才修改 runtime 或 profile。已安装的 Host 插件仍在 DSH Node.js runtime 中执行，Client 插件 bundle 仍加入官方 UI renderer；此版本不提供 VS Code 式隔离 Extension Host。
 
-插件也可以在自身 package manifest 的 `dsh.desktop.overlay` 中声明一个受限的 Desktop overlay。插件拥有收起和展开尺寸以及所渲染的 Web surface。在 macOS 上，宿主创建透明且不抢焦点的 `panel`，使其始终显示在其他应用上方，并跨 Space 和全屏应用保持可见。兼容 sandbox 的 CommonJS preload 只提供移动与展开能力。Overlay 创建仍由 manifest 驱动；插件离开 profile 时，宿主会销毁窗口，因此卸载不会留下 overlay 状态。普通官方 Web 窗口不会获得该 bridge。
+插件也可以在自身 package manifest 的 `dsh.desktop.overlay` 中声明一个受限的 Desktop overlay。插件拥有收起和展开尺寸以及所渲染的 Web surface。在 macOS 上，宿主创建透明且不抢焦点的 `panel`，使其始终显示在其他应用上方、跨 Space 和全屏应用保持可见，并将其排除在 Mission Control 之外。兼容 sandbox 的 CommonJS preload 只提供移动与展开能力。Overlay 创建仍由 manifest 驱动；宿主会在替换其 runtime 前或插件离开 profile 时销毁窗口，因此生命周期变更不会留下 overlay 状态。普通官方 Web 窗口不会获得该 bridge。
 
 ## 打包
 
