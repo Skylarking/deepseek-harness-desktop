@@ -11,7 +11,7 @@ Status: implemented
 ## 决策
 
 - **Desktop 不随包提供功能插件。** 它的 runtime 依赖闭包包含 DSH Web 应用与通用插件生命周期支持，但不包含工作区文件、终端或宠物 bundle。新 profile 不会收到 Desktop 默认插件；插件管理只安装用户选择的目录。
-- **外置插件源码继续保存在本仓库。** `plugins/workspace-files`、`plugins/workspace-console` 与 `plugins/codex-pets` 是受 Git 跟踪的开发源码。每个 Workspace 插件根目录都是可安装 bundle，并在 `packages/` 子目录中包含自己的 Host 与 Client 包。加入 workspace 可以让仓库统一构建这些源码，但不会让它们成为 CLI 或 Desktop 的发布依赖。
+- **外置插件源码继续保存在本仓库。** `plugins/workspace-files`、`plugins/workspace-console` 与 `plugins/codex-pets` 是受 Git 跟踪的开发源码。每个 Workspace 插件根目录都是可安装 bundle，并在 `packages/` 子目录中包含自己的 Host 与 Client 包。插件自有包名与 Remote 标识使用 `@skylarking` scope；其 manifest 中的 `@deepseek-ai` 名称只表示上游 Harness 依赖与可逆的官方布局 alias。加入 workspace 可以让仓库统一构建这些源码，但不会让它们成为 CLI 或 Desktop 的发布依赖。
 - **插件拥有完整运行时扩展。** 每个 Workspace Client 在共享 Client Remote service 可用后挂载自己生成的 Remote 贡献。核心 `dsh-api-remotes` 装配不再导入这两个外置插件，也不保留其类型、依赖或 project reference。
 - **Workspace 布局变化使用可逆的包别名。** 文件与终端 manifest 通过 `dsh.desktop.supportPackages` 声明所需的 profile-local package alias。Desktop 把这些别名记录在 `dsh.desktop.managedSupportPackages` 中，不在用户插件列表中显示它们，并在最后一个依赖该别名的已启用插件被停用或卸载后移除别名。支持包命令会原样保留功能 bundle 的启停列表；移除时会同时删除 manifest dependency 与 profile symlink，使下次启动解析到 Web runtime 原有的布局包。
 - **终端插件拥有自己的 PTY。** `plugins/workspace-console` 直接使用 `node-pty` 管理终端创建、输入、resize、退出与等待完成的释放过程。官方 subprocess 与 terminal 包保持不变。

@@ -8428,10 +8428,10 @@ importers:
 
   plugins/workspace-console:
     dependencies:
-      '@deepseek-ai/dsh-client-ui-workspace-console':
+      '@skylarking/dsh-client-ui-workspace-console':
         specifier: workspace:^
         version: link:packages/client
-      '@deepseek-ai/dsh-host-workspace-console':
+      '@skylarking/dsh-host-workspace-console':
         specifier: workspace:^
         version: link:packages/host
     devDependencies:
@@ -8478,15 +8478,15 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../../../../packages/client/ui-slots
-      '@deepseek-ai/dsh-host-workspace-console':
-        specifier: workspace:^
-        version: link:../host
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../../../packages/runtime-diagnostics/invariants
       '@skylarking/dsh-client-ui-workspace-layout':
         specifier: workspace:^
         version: link:../../../shared/workspace-layout
+      '@skylarking/dsh-host-workspace-console':
+        specifier: workspace:^
+        version: link:../host
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -8530,10 +8530,10 @@ importers:
 
   plugins/workspace-files:
     dependencies:
-      '@deepseek-ai/dsh-client-ui-workspace-files':
+      '@skylarking/dsh-client-ui-workspace-files':
         specifier: workspace:^
         version: link:packages/client
-      '@deepseek-ai/dsh-host-workspace-files':
+      '@skylarking/dsh-host-workspace-files':
         specifier: workspace:^
         version: link:packages/host
     devDependencies:
@@ -8574,15 +8574,15 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../../../../packages/client/ui-slots
-      '@deepseek-ai/dsh-host-workspace-files':
-        specifier: workspace:^
-        version: link:../host
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../../../packages/runtime-diagnostics/invariants
       '@skylarking/dsh-client-ui-workspace-layout':
         specifier: workspace:^
         version: link:../../../shared/workspace-layout
+      '@skylarking/dsh-host-workspace-files':
+        specifier: workspace:^
+        version: link:../host
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
@@ -8611,6 +8611,87 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+
+  plugins/workspace-multi:
+    dependencies:
+      '@deepseek-ai/dsh-host-directory-picker-native':
+        specifier: workspace:^
+        version: link:../../packages/host/directory-picker-native
+      '@skylarking/dsh-client-ui-multi-workspace':
+        specifier: workspace:^
+        version: link:packages/client
+      '@skylarking/dsh-host-multi-workspace':
+        specifier: workspace:^
+        version: link:packages/host
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/cordis
+
+  plugins/workspace-multi/packages/client:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: workspace:^
+        version: link:../../../../packages/client/ui-primitives
+      '@skylarking/dsh-host-multi-workspace':
+        specifier: workspace:^
+        version: link:../host
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../../vendor/cordis
+      '@deepseek-ai/dsh-api-remotes':
+        specifier: workspace:^
+        version: link:../../../../packages/api/remotes
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../../../../packages/client/locale
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../../../../packages/client/runtime
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../../../../packages/client/ui-slots
+      '@deepseek-ai/dsh-client-ui-workspace':
+        specifier: workspace:^
+        version: link:../../../../packages/client/ui-workspace
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+  plugins/workspace-multi/packages/host:
+    dependencies:
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:^
+        version: link:../../../../packages/llm/llm
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../../../packages/core/session
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:^
+        version: link:../../../../packages/typert/protocol
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../../vendor/cordis
+      '@deepseek-ai/dsh-agent':
+        specifier: workspace:^
+        version: link:../../../../packages/core/agent
 
   python/sdk-runtime:
     dependencies:

@@ -10,6 +10,8 @@ interface ConfigurableOverlayWindow {
 }
 
 interface DestroyableOverlayWindow {
+  hide?: () => void
+  close?: () => void
   destroy(): void
   isDestroyed(): boolean
 }
@@ -56,6 +58,9 @@ export function overlayWindowOptions(
  * @returns Nothing after the window is destroyed or was already destroyed.
  */
 export function destroyOverlayWindow(window: DestroyableOverlayWindow): void {
+  if (window.isDestroyed()) return
+  window.hide?.()
+  window.close?.()
   if (!window.isDestroyed()) window.destroy()
 }
 

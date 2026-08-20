@@ -10,25 +10,6 @@ import {
 } from '../src/plugin-manager.ts'
 
 describe('plugin profile discovery', () => {
-  it.each([
-    ['workspace-files', '@deepseek-ai/dsh-client-ui-workspace-files', '@deepseek-ai/dsh-host-workspace-files'],
-    ['workspace-console', '@deepseek-ai/dsh-client-ui-workspace-console', '@deepseek-ai/dsh-host-workspace-console'],
-  ])('discovers every loader package owned by the repository %s plugin', async (directory, client, host) => {
-    const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-repository-plugin-'))
-    const plugin = join(import.meta.dirname, '..', '..', '..', 'plugins', directory)
-    await writeFile(join(root, 'package.json'), JSON.stringify({
-      dependencies: { local: `link:${plugin}` },
-      dsh: { profile: { bundles: ['local'] } },
-    }))
-
-    const [installed] = await listProfilePlugins(root)
-    expect(installed?.supportPackages).toEqual({
-      '@deepseek-ai/dsh-client-ui-layout': join(plugin, '..', 'shared', 'workspace-layout'),
-      [client]: join(plugin, 'packages', 'client'),
-      [host]: join(plugin, 'packages', 'host'),
-    })
-  })
-
   it('retires only recorded defaults that point into the Desktop runtime', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-retired-defaults-'))
     const profile = join(root, 'profile')
@@ -36,24 +17,24 @@ describe('plugin profile discovery', () => {
     await mkdir(profile)
     await writeFile(join(profile, 'package.json'), JSON.stringify({
       dependencies: {
-        '@deepseek-ai/dsh-workspace-files': `link:${join(runtime, 'node_modules/@deepseek-ai/dsh-workspace-files')}`,
-        '@deepseek-ai/dsh-workspace-console': 'link:/plugins/workspace-console',
+        '@legacy/retired-runtime-plugin': `link:${join(runtime, 'node_modules/@legacy/retired-runtime-plugin')}`,
+        '@example/external-plugin': 'link:/plugins/external-plugin',
       },
       dsh: {
-        profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-workspace-files', '@deepseek-ai/dsh-workspace-console'] },
-        desktop: { defaultPlugins: ['@deepseek-ai/dsh-workspace-files', '@deepseek-ai/dsh-workspace-console'] },
+        profile: { bundles: ['@deepseek-ai/dsh-base', '@legacy/retired-runtime-plugin', '@example/external-plugin'] },
+        desktop: { defaultPlugins: ['@legacy/retired-runtime-plugin', '@example/external-plugin'] },
       },
     }))
 
     await expect(removeRetiredDesktopDefaults(profile, join(runtime, 'lib/bin.js')))
-      .resolves.toEqual(['@deepseek-ai/dsh-workspace-files'])
+      .resolves.toEqual(['@legacy/retired-runtime-plugin'])
     const manifest = JSON.parse(await readFile(join(profile, 'package.json'), 'utf8')) as {
       dependencies: Record<string, string>
       dsh: { profile: { bundles: string[] }; desktop: { defaultPlugins?: string[] } }
     }
-    expect(manifest.dependencies['@deepseek-ai/dsh-workspace-files']).toBeUndefined()
-    expect(manifest.dependencies['@deepseek-ai/dsh-workspace-console']).toBe('link:/plugins/workspace-console')
-    expect(manifest.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-workspace-console'])
+    expect(manifest.dependencies['@legacy/retired-runtime-plugin']).toBeUndefined()
+    expect(manifest.dependencies['@example/external-plugin']).toBe('link:/plugins/external-plugin')
+    expect(manifest.dsh.profile.bundles).toEqual(['@deepseek-ai/dsh-base', '@example/external-plugin'])
     expect(manifest.dsh.desktop.defaultPlugins).toBeUndefined()
   })
 

@@ -40,7 +40,9 @@ function renderPolicyContext(policy: SandboxExecutionPolicy): string {
     case 'read-only':
       return 'Current DSH file policy: read-only. Any available operation enforced by the DSH file sandbox cannot modify files in the standing mode. Do not refuse a required modification from this policy alone: try an available tool normally and follow any denial and escalation guidance it returns.'
     case 'workspace-write':
-      return `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(policy.workspaceRoot)}. Some platform temporary areas may also be writable.`
+      return policy.additionalWritableRoots === undefined
+        ? `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(policy.workspaceRoot)}. Some platform temporary areas may also be writable.`
+        : `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under these project folders: ${JSON.stringify([policy.workspaceRoot, ...policy.additionalWritableRoots])}. Some platform temporary areas may also be writable.`
     case 'danger-full-access':
       return 'Current DSH file policy: danger-full-access. The DSH file sandbox does not restrict file modifications by available operations.'
     /* v8 ignore next 4 -- SandboxMode is a typed same-process closed union; this branch is only the static exhaustiveness guard. */
@@ -82,6 +84,9 @@ export interface SandboxPolicyRequest {
   mode?: SandboxMode
 }
 
+/** Supplies project folders that join a session's standing write allowance. */
+export type AdditionalWritableRootsProvider = (session: Session) => readonly string[]
+
 /**
  * The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment
  * default mode, fallback workspace root, and current request-time policy
@@ -101,6 +106,7 @@ export class SandboxPolicyService extends Service {
   readonly defaultMode: SandboxMode
   /** The absolute `workspace-write` fallback root for calls without a session cwd. */
   readonly workspaceRoot: string
+  private readonly additionalRootsProviders = new Set<AdditionalWritableRootsProvider>()
   constructor(ctx: Context, config: Config) {
     super(ctx, 'sandboxPolicy')
     // schemastery (static Config) already filled `mode`; the cast records that
@@ -124,19 +130,39 @@ export class SandboxPolicyService extends Service {
   }
 
   /**
+   * Register a synchronous provider of additional project roots. Providers
+   * return current state on every call because project folders may change
+   * while older sessions remain live.
+   * @param provider - Session-to-roots resolver.
+   * @returns disposer that removes the contribution.
+   */
+  registerAdditionalWritableRoots(provider: AdditionalWritableRootsProvider): () => void {
+    this.additionalRootsProviders.add(provider)
+    return () => { this.additionalRootsProviders.delete(provider) }
+  }
+
+  /**
    * Resolve the complete policy for one capability call. An approved explicit
    * mode outranks the session's last `sandbox/mode` event, which outranks the
    * deployment default. A session cwd is its workspace-write boundary; the
    * configured root is the fallback for agentless calls and sessions without a
    * cwd.
    * @param request - optional session and approved mode override.
-   * @returns the fully resolved per-call mode and absolute workspace root.
+   * @returns the fully resolved per-call mode and absolute project roots.
    */
   resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy {
     const { session } = request
+    const workspaceRoot = resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot)
+    const additionalWritableRoots = session === undefined
+      ? []
+      : [...new Set([...this.additionalRootsProviders]
+        .flatMap(provider => provider(session))
+        .map(resolveWorkspaceRoot)
+        .filter(root => root !== workspaceRoot))]
     return {
       mode: request.mode ?? (session === undefined ? undefined : this.overrideOf(session)) ?? this.defaultMode,
-      workspaceRoot: resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot),
+      workspaceRoot,
+      ...additionalWritableRoots.length === 0 ? {} : { additionalWritableRoots },
       ...session === undefined ? {} : { sessionId: session.id },
     }
   }

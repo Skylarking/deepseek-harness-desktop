@@ -43,6 +43,9 @@ const DESKTOP_PLUGIN_INVENTORY = '@skylarking/dsh-client-ui-desktop-plugin-inven
 let mainWindow: BrowserWindow | undefined
 let pluginWindow: BrowserWindow | undefined
 const desktopWindows = new Map<string, BrowserWindow>()
+// Keep the object registry separate from the plugin-name map. A renderer or
+// teardown callback can remove a map entry while the native window is still alive.
+const desktopOverlayWindows = new Set<BrowserWindow>()
 const desktopWindowPlugins = new Map<BrowserWindow, DesktopPlugin>()
 const desktopWindowCompactSizes = new Map<BrowserWindow, { width: number; height: number }>()
 const desktopWindowExpanded = new Map<BrowserWindow, boolean>()
@@ -52,6 +55,9 @@ let runtimeEntry: string
 let workspace = process.env.DSH_DESKTOP_WORKSPACE ?? homedir()
 const runtimeOperations = new RuntimeOperationQueue()
 let quitting = false
+let desktopOverlayGeneration = 0
+let creatingDesktopWindow = false
+let unexpectedWindowSweep: NodeJS.Timeout | undefined
 
 interface ProfileBootModule {
   initProfile: (profileDir: string, bundles: readonly string[]) => void
@@ -91,8 +97,24 @@ function currentOrigin(): string | undefined {
   return new URL(runtimeUrl).origin
 }
 
+/** Create one of the three native window classes owned by Desktop. */
+function createDesktopWindow(options: Electron.BrowserWindowConstructorOptions): BrowserWindow {
+  creatingDesktopWindow = true
+  try {
+    const window = new BrowserWindow(options)
+    window.webContents.on('did-create-window', (child) => {
+      // Web UI plugins may use window.open for ordinary links, but Desktop
+      // does not support plugin-owned native child windows.
+      destroyOverlayWindow(child)
+    })
+    return window
+  } finally {
+    creatingDesktopWindow = false
+  }
+}
+
 function createMainWindow(): BrowserWindow {
-  const window = new BrowserWindow({
+  const window = createDesktopWindow({
     width: 1320,
     height: 880,
     minWidth: 900,
@@ -135,7 +157,7 @@ function showDesktopOverlay(plugin: DesktopPlugin): void {
   const workArea = mainWindow === undefined
     ? screen.getPrimaryDisplay().workArea
     : screen.getDisplayMatching(mainWindow.getBounds()).workArea
-  const window = new BrowserWindow(overlayWindowOptions(
+  const window = createDesktopWindow(overlayWindowOptions(
     overlay,
     workArea,
     join(import.meta.dirname, 'overlay-preload.cjs'),
@@ -144,6 +166,7 @@ function showDesktopOverlay(plugin: DesktopPlugin): void {
   window.setIgnoreMouseEvents(false)
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   desktopWindows.set(plugin.name, window)
+  desktopOverlayWindows.add(window)
   desktopWindowPlugins.set(window, plugin)
   desktopWindowCompactSizes.set(window, { width: overlay.width, height: overlay.height })
   desktopWindowExpanded.set(window, false)
@@ -151,18 +174,23 @@ function showDesktopOverlay(plugin: DesktopPlugin): void {
     desktopWindowPlugins.delete(window)
     desktopWindowCompactSizes.delete(window)
     desktopWindowExpanded.delete(window)
+    desktopOverlayWindows.delete(window)
     if (desktopWindows.get(plugin.name) === window) desktopWindows.delete(plugin.name)
   })
   const url = overlay.entry === 'dsh:web'
     ? runtimeUrl === undefined ? undefined : new URL(runtimeUrl)
     : new URL(pathToFileURL(overlay.entry).href)
   if (url === undefined) {
-    destroyOverlayWindow(window)
+    hideDesktopOverlay(plugin.name)
     return
   }
   if (overlay.entry === 'dsh:web') url.searchParams.set('dsh-desktop-overlay', plugin.name)
+  const generation = desktopOverlayGeneration
   void window.loadURL(url.href).then(() => {
-    if (!window.isDestroyed() && desktopWindows.get(plugin.name) === window) window.showInactive()
+    if (generation === desktopOverlayGeneration
+      && !window.isDestroyed()
+      && desktopWindows.get(plugin.name) === window
+      && desktopOverlayWindows.has(window)) window.showInactive()
   })
 }
 
@@ -170,15 +198,43 @@ function hideDesktopOverlay(name: string): void {
   const window = desktopWindows.get(name)
   if (window === undefined) return
   desktopWindows.delete(name)
+  desktopOverlayWindows.delete(window)
+  desktopWindowPlugins.delete(window)
+  desktopWindowCompactSizes.delete(window)
+  desktopWindowExpanded.delete(window)
   destroyOverlayWindow(window)
 }
 
 function closeDesktopOverlays(): void {
-  for (const name of [...desktopWindows.keys()]) hideDesktopOverlay(name)
+  desktopOverlayGeneration += 1
+  const owned = new Set(desktopOverlayWindows)
+  // Include native windows that lost their plugin-map entry during a renderer
+  // crash or an earlier runtime generation. Desktop has no supported native
+  // window type other than the main window, plugin manager, and overlays.
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window !== mainWindow && window !== pluginWindow) owned.add(window)
+  }
+  for (const window of owned) {
+    if (!window.isDestroyed()) destroyOverlayWindow(window)
+    desktopOverlayWindows.delete(window)
+    desktopWindowPlugins.delete(window)
+    desktopWindowCompactSizes.delete(window)
+    desktopWindowExpanded.delete(window)
+  }
+  desktopWindows.clear()
+}
+
+/** Remove native popups created outside Desktop's supported window lifecycle. */
+function pruneUnexpectedDesktopWindows(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window !== mainWindow && window !== pluginWindow && !desktopOverlayWindows.has(window)) {
+      destroyOverlayWindow(window)
+    }
+  }
 }
 
 function overlayWindow(sender: Electron.WebContents): BrowserWindow | undefined {
-  return [...desktopWindows.values()].find(window => !window.isDestroyed() && window.webContents === sender)
+  return [...desktopOverlayWindows].find(window => !window.isDestroyed() && window.webContents === sender)
 }
 
 function registerOverlayIpc(): void {
@@ -221,6 +277,7 @@ function registerOverlayIpc(): void {
 }
 
 async function syncDesktopOverlays(): Promise<void> {
+  closeDesktopOverlays()
   const plugins = await listProfilePlugins(resolveWebProfileDir())
   const enabled = plugins.filter(plugin => plugin.enabled)
   const active = new Set(enabled.filter(plugin => plugin.desktopOverlay !== undefined).map(plugin => plugin.name))
@@ -429,7 +486,7 @@ function showPluginManager(): void {
   }
   const parent = mainWindow
   if (parent === undefined) return
-  pluginWindow = new BrowserWindow(pluginWindowOptions(parent, join(import.meta.dirname, 'preload.cjs')))
+  pluginWindow = createDesktopWindow(pluginWindowOptions(parent, join(import.meta.dirname, 'preload.cjs')))
   pluginWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   pluginWindow.webContents.on('will-navigate', (event, url) => {
     if (url !== PLUGIN_MANAGER_URL) event.preventDefault()
@@ -530,8 +587,21 @@ app.setName(APP_NAME)
 // Electron derives this path before app.setName() affects the default. Pin it
 // before taking the single-instance lock so other Electron apps cannot collide.
 app.setPath('userData', join(app.getPath('appData'), APP_NAME))
+app.on('web-contents-created', (_event, contents) => {
+  contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  contents.on('did-create-window', (child) => { destroyOverlayWindow(child) })
+})
+app.on('browser-window-created', (_event, _window) => {
+  if (creatingDesktopWindow) return
+  // Plugins contribute Web UI and overlays, never additional native windows.
+  // Destroy an unexpected popup before it can become a Mission Control entry.
+  queueMicrotask(() => {
+    pruneUnexpectedDesktopWindows()
+  })
+})
 if (!app.requestSingleInstanceLock()) app.quit()
 else {
+  unexpectedWindowSweep = setInterval(pruneUnexpectedDesktopWindows, 250)
   app.on('second-instance', () => {
     if (mainWindow?.isMinimized()) mainWindow.restore()
     mainWindow?.show()
@@ -541,6 +611,8 @@ else {
     if (quitting) return
     event.preventDefault()
     quitting = true
+    if (unexpectedWindowSweep !== undefined) clearInterval(unexpectedWindowSweep)
+    closeDesktopOverlays()
     void runtimeOperations.close()
       .then(async () => await runtime?.stop())
       .finally(() => { app.exit(0) })

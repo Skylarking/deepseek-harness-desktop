@@ -1,7 +1,7 @@
 /**
  * Workspace entity registry (`ctx.workspaceRegistry`): durable workspace records,
- * stable registry order, and header-validated session membership over the
- * domain data form.
+ * stable registry order, mutable primary directories, and explicit session
+ * ownership over the domain data form.
  * @module @deepseek-ai/dsh-workspace
  */
 
@@ -98,17 +98,13 @@ export class WorkspaceRegistry extends Service {
   private readonly entities = new Map<WorkspaceId, WorkspaceEntity>()
   private readonly headers = new Map<SessionId, SessionHeader>()
   private readonly sessionPaths = new Map<SessionId, string>()
-  private readonly invalidSessionPaths = new Map<SessionId, string>()
   private operationTail: Promise<void> = Promise.resolve()
 
   private readonly host: WorkspaceEntityHost = {
     table: () => this.requireTable(),
-    sessionPath: id => this.sessionPaths.get(id),
     readSessionHeader: id => this.readSessionHeader(id),
-    rememberSessionPath: (id, path) => {
-      this.sessionPaths.set(id, path)
-      this.invalidSessionPaths.delete(id)
-    },
+    withSessionOwnership: operation => this.enqueueOperation(operation),
+    sessionOwner: id => this.sessionOwner(id),
   }
 
   constructor(ctx: Context) {
@@ -136,7 +132,6 @@ export class WorkspaceRegistry extends Service {
     await this.indexLiveSessions()
     this.validateStoredState(this.requireState())
     this.rebuildEntities()
-    this.reportFilteredCandidates()
   }
 
   /**
@@ -280,6 +275,30 @@ export class WorkspaceRegistry extends Service {
       if (entity.path === canonical) return entity
     }
     return undefined
+  }
+
+  /**
+   * Replace a workspace's primary directory while preserving its stable id,
+   * title, and session account. The path must identify an existing directory
+   * not currently used as another workspace's primary path.
+   * @param id - Workspace whose primary directory changes.
+   * @param path - Existing directory in any spelling.
+   * @returns resolution after durability.
+   */
+  async setPath(id: WorkspaceId, path: string): Promise<void> {
+    const canonical = await realpathNormalize(path)
+    if (!(await stat(canonical)).isDirectory()) {
+      throw new Error(`cannot set workspace '${id}' path to '${canonical}': path is not a directory`)
+    }
+    await this.enqueueOperation(async () => {
+      const entity = this.entities.get(id)
+      if (entity === undefined) throw new Error(`cannot set path for unknown workspace '${id}'`)
+      const holder = [...this.entities.values()].find(candidate => candidate.id !== id && candidate.path === canonical)
+      if (holder !== undefined) {
+        throw new Error(`cannot set workspace '${id}' path to '${canonical}': workspace '${holder.id}' already owns it`)
+      }
+      await entity.setPath(canonical)
+    })
   }
 
   private async createCanonical(canonical: string, title?: string): Promise<WorkspaceEntity> {
@@ -558,10 +577,16 @@ export class WorkspaceRegistry extends Service {
     }
   }
 
+  private sessionOwner(id: SessionId): WorkspaceId | undefined {
+    for (const [workspaceId, entity] of this.entities) {
+      if (entity.sessionIds.includes(id)) return workspaceId
+    }
+    return undefined
+  }
+
   private async replaceHeaderIndex(headers: readonly SessionHeader[]): Promise<void> {
     this.headers.clear()
     this.sessionPaths.clear()
-    this.invalidSessionPaths.clear()
     await this.indexHeaders(headers)
   }
 
@@ -572,20 +597,15 @@ export class WorkspaceRegistry extends Service {
   private async indexHeader(header: SessionHeader): Promise<void> {
     this.headers.set(header.id, header)
     this.sessionPaths.delete(header.id)
-    if (header.cwd === undefined) {
-      this.invalidSessionPaths.set(header.id, 'header has no cwd')
-      return
-    }
+    if (header.cwd === undefined) return
     try {
       const path = await realpathNormalize(header.cwd)
       if (!(await stat(path)).isDirectory()) {
-        this.invalidSessionPaths.set(header.id, `cwd '${header.cwd}' is not a directory`)
         return
       }
       this.sessionPaths.set(header.id, path)
-      this.invalidSessionPaths.delete(header.id)
     } catch {
-      this.invalidSessionPaths.set(header.id, `cwd '${header.cwd}' does not resolve`)
+      // An unusable cwd is excluded only from one-time path bootstrap.
     }
   }
 
@@ -593,23 +613,6 @@ export class WorkspaceRegistry extends Service {
     const sessions = this.ctx.get('sessions')
     if (sessions === undefined) return
     await this.indexHeaders(sessions.list().map(session => session.header))
-  }
-
-  private reportFilteredCandidates(): void {
-    for (const entity of this.entities.values()) {
-      const record = this.requireTable().get(entity.id) as WorkspaceRecord
-      for (const sessionId of record.sessionIds) {
-        const path = this.sessionPaths.get(sessionId)
-        if (path === record.path) continue
-        const reason = this.invalidSessionPaths.get(sessionId)
-          ?? (this.headers.has(sessionId)
-            ? `canonical cwd '${path}' differs from workspace path '${record.path}'`
-            : 'session header is missing')
-        this.ctx.logger.warn(
-          `workspace '${entity.id}' filtered session '${sessionId}' from membership: ${reason}`,
-        )
-      }
-    }
   }
 
   private async readSessionHeader(id: SessionId): Promise<SessionHeader> {

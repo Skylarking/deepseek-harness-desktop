@@ -2,6 +2,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { DesktopWebPluginApi } from './contracts.ts'
 
+window.open = () => null
+
 const api: DesktopWebPluginApi = {
   installLocal: async () => await ipcRenderer.invoke('desktop:web-plugins:install') as Awaited<ReturnType<DesktopWebPluginApi['installLocal']>>,
   list: async () => await ipcRenderer.invoke('desktop:web-plugins:list') as Awaited<ReturnType<DesktopWebPluginApi['list']>>,

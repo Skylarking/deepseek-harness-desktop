@@ -14,8 +14,8 @@ import type { WorkspaceId } from './types.ts'
 const workspaceId = z.string().transform(value => value as WorkspaceId)
 
 /**
- * Durable shape of one workspace record. `path` is the `fs.realpath` canon
- * stamped at create; `sessionIds` is the ordered ownership account (array
+ * Durable shape of one workspace record. `path` is the current canonical
+ * primary directory; `sessionIds` is the ordered ownership account (array
  * order is display order); timestamps are ISO-8601 strings.
  */
 export const workspaceRecord = z.object({
