@@ -1,8 +1,9 @@
 /** Profile plugin management through the same DSH CLI used by the desktop runtime. */
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { lstat, readFile, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { parseDocument } from 'yaml'
 import type { DesktopPlugin } from './contracts.ts'
 import { dshNodeArgs } from './dsh-process.ts'
@@ -356,10 +357,17 @@ export async function syncProfileSupportPackages(
 
 /** Execute one profile-management command with argument-safe spawning. */
 export async function runPluginCommand(entry: string, cwd: string, args: readonly string[]): Promise<void> {
+  const pathEntries = [
+    process.env.PNPM_HOME,
+    join(homedir(), 'Library', 'pnpm'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+  ].filter((value): value is string => value !== undefined && value !== '' && existsSync(join(value, 'pnpm')))
+  const path = [...new Set([...pathEntries, ...(process.env.PATH ?? '').split(delimiter).filter(Boolean)])].join(delimiter)
   await new Promise<void>((resolvePromise, reject) => {
     const child = spawn(process.execPath, dshNodeArgs(entry, ['plugin', '--profile', 'web', ...args]), {
       cwd,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      env: { ...process.env, PATH: path, ELECTRON_RUN_AS_NODE: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     const stderr: string[] = []

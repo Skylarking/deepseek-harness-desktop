@@ -1,11 +1,11 @@
-import { lstat, mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { mkdtemp } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import {
   cleanupPluginSettings, cleanupProfilePluginLink, listProfilePlugins, localPluginPath,
-  removeRetiredDesktopDefaults, resolveSettingsFile, setProfilePluginEnabled,
+  removeRetiredDesktopDefaults, resolveSettingsFile, runPluginCommand, setProfilePluginEnabled,
   syncProfileSupportPackages,
 } from '../src/plugin-manager.ts'
 
@@ -316,6 +316,35 @@ describe('plugin profile discovery', () => {
 
     await expect(lstat(installed)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(lstat(join(source, 'sentinel'))).resolves.toBeDefined()
+  })
+
+  it.runIf(process.platform !== 'win32')('finds pnpm in the standard user install directory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-pnpm-path-'))
+    const pnpmDir = join(root, 'Library', 'pnpm')
+    const entry = join(root, 'entry.mjs')
+    await mkdir(pnpmDir, { recursive: true })
+    await writeFile(join(pnpmDir, 'pnpm'), '#!/bin/sh\nexit 0\n')
+    await chmod(join(pnpmDir, 'pnpm'), 0o755)
+    await writeFile(entry, [
+      "import { spawnSync } from 'node:child_process'",
+      "const result = spawnSync('pnpm', [], { stdio: 'inherit' })",
+      'if (result.error !== undefined) throw result.error',
+      'process.exit(result.status ?? 1)',
+      '',
+    ].join('\n'))
+
+    const previousHome = process.env.HOME
+    const previousPath = process.env.PATH
+    process.env.HOME = root
+    process.env.PATH = '/usr/bin:/bin'
+    try {
+      await expect(runPluginCommand(entry, root, [])).resolves.toBeUndefined()
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME
+      else process.env.HOME = previousHome
+      if (previousPath === undefined) delete process.env.PATH
+      else process.env.PATH = previousPath
+    }
   })
 
   it('refuses to delete a non-link plugin path from the profile', async () => {
