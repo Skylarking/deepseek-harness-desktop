@@ -16,6 +16,8 @@ The command builds the Electron host and plugin-manager renderer, stages a self-
 
 ## Plugin management
 
+Plugin source is maintained outside this repository in the [DSH Plugins collection](https://github.com/Skylarking/dsh-plugins). The collection pins each independently versioned plugin as a Git submodule; Desktop only owns installation, enablement, disablement, uninstall, and lifecycle cleanup.
+
 Use **Settings > Plugins > Plugin list** to install a local plugin directory into the shared `web` profile, disable or re-enable an installed plugin, and uninstall it. Desktop ships no feature plugins and does not add any to a new profile. Disable removes only the package from `dsh.profile.bundles`, preserving its dependency, source, and settings; uninstall removes the dependency and plugin-declared settings namespaces without deleting local source. The separate **Plugins > Manage Plugins** window remains available for source/profile opening and manual runtime restart.
 
 An enabled plugin may declare profile-local package aliases through `dsh.desktop.supportPackages`. Desktop reconciles those aliases from the complete enabled-plugin set before each restart. Shared support remains active while any enabled plugin requires the same path, and removing the last requirement restores the runtime package bundled with DSH. Support aliases are implementation details and do not appear as separately manageable plugins.
