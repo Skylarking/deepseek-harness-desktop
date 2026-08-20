@@ -2,7 +2,7 @@
  * Package-private workspace entity: the single {@link Workspace}
  * implementation. Holds a record snapshot that is swapped in place after each
  * durable mutation; every write funnels through the private `mutate` so
- * `updatedAt` stamping and invalid-account pruning happen exactly once.
+ * `updatedAt` stamping happens exactly once.
  * Not re-exported from the package entrypoint — consumers see only the
  * `Workspace` interface.
  * @module @deepseek-ai/dsh-workspace/src/entity
@@ -68,7 +68,7 @@ export class WorkspaceEntity implements Workspace {
   private record: WorkspaceRecord
 
   /**
-   * @param host - Registry-owned table, session-path index, and header reads.
+   * @param host - Registry-owned table, ownership serialization, and header reads.
    * @param id - The record's stable id.
    * @param record - The validated record snapshot loaded or just written.
    */
