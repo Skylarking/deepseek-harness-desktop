@@ -60,21 +60,17 @@ Desktop 将应用界面和运行时的变化作为插件拥有的扩展管理，
 
 ## 插件
 
-工作区文件、终端与 Codex 宠物都是仓库中受 Git 跟踪的外置插件，不包含在 Desktop 发布包中，只有用户安装对应的本地插件目录后才会出现。每个插件分别拥有下述界面与运行时资源；禁用或卸载插件时，插件管理会移除这些扩展。
+Sidebar 与 Codex 宠物都是外置插件。它们的源码仓库由 [DSH Plugins 集合](https://github.com/Skylarking/dsh-plugins)分别管理，不包含在 Desktop 发布包中，只有用户通过插件管理器安装后才会出现。
 
-### 项目文件
+### Sidebar
 
-工作区文件插件会增加可调整大小的右侧面板，其中包含目录树、路径跳转，以及文本和常见图片格式的并排预览。打开 Session 后仍可使用该面板，且不会遮挡会话内容。
-
-### 终端
-
-终端插件会增加可调整大小的底部面板，并支持多个终端标签。每个标签都由独立的持久 PTY 支持，因此 shell、REPL、控制键与交互式程序的行为和真实终端一致。
+`dsh-sidebar` 插件通过一个可逆的插件生命周期增加可调整大小的右侧与底部 Dock。右侧 Dock 初始打开文件视图，提供目录树、路径跳转，以及有界的文本和常见图片格式预览；底部 Dock 初始打开由持久 PTY 支持的终端。两个 Dock 都能从加号菜单新增文件或终端标签，切换标签时会保留未激活视图的状态。打开 Session 后仍可使用这些 Dock，且不会遮挡会话内容。
 
 ### 桌面宠物
 
 可选的 Codex 宠物插件会读取兼容 Codex 的 `pet.json` 资源，并在其他应用和全屏 Space 上方显示动画宠物。它支持宠物选择、缩放、拖动和 Session 活动状态。卸载插件会同时移除宠物窗口与设置，但不会删除用户安装的宠物资源。
 
-详细行为与限制参见[工作区文件参考](plugins/workspace-files/README.md)、[终端参考](plugins/workspace-console/README.md)、[桌面应用参考](apps/desktop/README.md)与[宠物插件参考](plugins/codex-pets/README.md)。
+插件源码、安装方式和各插件的行为说明参见 [DSH Plugins 集合](https://github.com/Skylarking/dsh-plugins)。Desktop 侧的插件生命周期参见[桌面应用参考](apps/desktop/README.md)。
 
 <a id="run"></a>
 
@@ -114,7 +110,7 @@ CSC_IDENTITY_AUTO_DISCOVERY=false pnpm desktop:package
 
 ## 与上游的关系
 
-DeepSeek Harness Desktop 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 开发的非官方 macOS 发行版。本仓库维护桌面 Host 与桌面专用插件，并持续集成适用的上游更新。底层 Harness 仍处于开发者预览阶段，可能出现破坏兼容性的变更。
+DeepSeek Harness Desktop 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 开发的非官方 macOS 发行版。本仓库维护桌面 Host；独立确定版本的桌面插件位于 [DSH Plugins 集合](https://github.com/Skylarking/dsh-plugins)。底层 Harness 仍处于开发者预览阶段，可能出现破坏兼容性的变更。
 
 ## 开发
 

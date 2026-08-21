@@ -18,7 +18,7 @@ Workspace membership also required every session header cwd to equal the workspa
 - **The external multi-workspace plugin persists by workspace id.** Project records contain workspaceId, paths, and primaryPath. Creation passes the selected primary folder to native workspace creation. Editing updates the native workspace path before committing the plugin mapping and rolls it back if plugin persistence fails. The current primary folder cannot be removed until another folder becomes primary.
 - **Old plugin storage is rejected.** The versioned object format replaces the unversioned root-path-keyed array. This repository is pre-release and does not retain a compatibility reader.
 
-This decision supersedes the immutable-native-root assumption in plugins/workspace-multi/AGENT_NOTE.md; that note remains authoritative for plugin loading, Remote routing, and the row-menu adapter.
+This decision supersedes the immutable-native-root assumption in the external [multi-workspace plugin note](https://github.com/Skylarking/dsh-plugin-workspace-multi/blob/main/AGENT_NOTE.md); that note remains authoritative for plugin loading, Remote routing, and the row-menu adapter.
 
 ## Verification
 

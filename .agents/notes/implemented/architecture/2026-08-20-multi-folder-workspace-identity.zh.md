@@ -18,7 +18,7 @@ Workspace 成员关系还要求每个会话头的 cwd 等于 workspace 路径。
 - **外部 multi-workspace 插件按 workspace id 持久化。** 项目记录包含 workspaceId、paths 和 primaryPath。创建时将选定的主要文件夹传给原生 workspace 创建。编辑时先更新原生 workspace 路径，再提交插件映射；如果插件持久化失败，则回滚路径。在另一个文件夹成为主要文件夹之前，当前主要文件夹不能被移除。
 - **拒绝旧插件存储格式。** 带版本的对象格式替代无版本且以根路径为键的数组。仓库仍处于预发布阶段，因此不保留兼容读取器。
 
-本决策取代 plugins/workspace-multi/AGENT_NOTE.md 中不可变原生根目录的假设；该记录仍负责插件加载、Remote 路由和 workspace 行菜单适配器。
+本决策取代外部[多 workspace 插件记录](https://github.com/Skylarking/dsh-plugin-workspace-multi/blob/main/AGENT_NOTE.md)中不可变原生根目录的假设；该记录仍负责插件加载、Remote 路由和 workspace 行菜单适配器。
 
 ## 验证
 

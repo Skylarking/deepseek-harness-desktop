@@ -16,6 +16,8 @@ pnpm desktop:dev
 
 ## 插件管理
 
+插件源码在本仓库之外的 [DSH Plugins 集合](https://github.com/Skylarking/dsh-plugins)中维护。该集合通过 Git submodule 固定每个独立确定版本的插件；Desktop 只负责安装、启用、停用、卸载与生命周期清理。
+
 在 **设置 > 插件 > 插件列表** 中把本地插件目录安装到共享 `web` profile，也可以停用、重新启用或卸载已安装插件。Desktop 不随包提供功能插件，也不会向新 profile 自动添加插件。停用只把包移出 `dsh.profile.bundles`，保留依赖、源码和设置；卸载会移除依赖和插件声明拥有的设置 namespace，但不删除本地源码。独立的 **Plugins > Manage Plugins** 窗口仍可用于打开源码/profile 和手动重启 runtime。
 
 已启用插件可以通过 `dsh.desktop.supportPackages` 声明 profile-local package alias。Desktop 会在每次重启前根据完整的已启用插件集合校准这些 alias；只要仍有插件需要同一路径，共享支持包就会保留，最后一个依赖消失后则恢复 DSH 随包提供的 runtime package。支持包 alias 属于实现细节，不会显示为可单独管理的插件。

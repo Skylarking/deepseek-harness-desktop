@@ -60,15 +60,11 @@ Reversibility follows ownership recorded in manifests instead of relying on code
 
 ## Plugins
 
-Workspace files, Terminal, and Codex pets are external plugins. Their source repositories are maintained separately from Desktop in the [DSH Plugins collection](https://github.com/Skylarking/dsh-plugins), where each plugin is tracked as an independent Git submodule. They are not included in the Desktop release and appear only after the user installs them through the plugin manager.
+Sidebar and Codex pets are external plugins. Their source repositories are maintained separately from Desktop in the [DSH Plugins collection](https://github.com/Skylarking/dsh-plugins), where each plugin is tracked as an independent Git submodule. They are not included in the Desktop release and appear only after the user installs them through the plugin manager.
 
-### Project files
+### Sidebar
 
-The Workspace files plugin adds a resizable right-hand panel with a directory tree, path navigation, and side-by-side preview for text and common image formats. The panel remains available while a Session is open and does not cover the conversation.
-
-### Terminal
-
-The Terminal plugin adds a resizable bottom panel with multiple terminal tabs. Every tab is backed by an independent persistent PTY, so shells, REPLs, control keys, and interactive programs behave like a real terminal.
+The `dsh-sidebar` plugin adds resizable right and bottom docks through one reversible plugin lifecycle. The right dock initially opens a file view with a directory tree, path navigation, and bounded previews for text and common image formats; the bottom dock initially opens a terminal backed by a persistent PTY. Either dock can add file or terminal tabs from its plus menu, and switching tabs preserves inactive view state. The docks remain available while a Session is open and do not cover the conversation.
 
 ### Desktop pets
 
@@ -114,7 +110,7 @@ Artifacts are written to `apps/desktop/release/`. The current package targets Ap
 
 ## Relationship to upstream
 
-DeepSeek Harness Desktop is an unofficial macOS distribution based on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). This repository maintains the desktop host and its desktop-specific plugins while integrating applicable upstream updates. The underlying Harness remains a developer preview and may introduce compatibility-breaking changes.
+DeepSeek Harness Desktop is an unofficial macOS distribution based on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). This repository maintains the desktop host while independently versioned desktop plugins live in the [DSH Plugins collection](https://github.com/Skylarking/dsh-plugins). The underlying Harness remains a developer preview and may introduce compatibility-breaking changes.
 
 ## Development
 

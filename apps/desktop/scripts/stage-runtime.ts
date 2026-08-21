@@ -67,7 +67,6 @@ function workspacePackageCatalog(repository: string): Map<string, string> {
     if (group.isDirectory()) addChildren(join(repository, 'packages', group.name))
   }
   addChildren(join(repository, 'apps'))
-  addChildren(join(repository, 'plugins', 'shared'))
   add(join(repository, 'native', 'landlock-run'))
   addChildren(join(repository, 'native', 'landlock-run', 'packages'))
   return packages
@@ -136,9 +135,7 @@ function makeRuntimeSelfContained(root: string): void {
     }
   }
   const catalog = workspacePackageCatalog(canonicalRepository)
-  const desktopInventory = catalog.get('@skylarking/dsh-client-ui-desktop-plugin-inventory')
-  if (desktopInventory === undefined) throw new Error('Desktop plugin inventory support package is missing')
-  for (const [name, source] of workspaceClosure([cliSource, desktopInventory], catalog)) {
+  for (const [name, source] of workspaceClosure([cliSource], catalog)) {
     let destination = packageDestinations.get(name)
     if (destination === undefined) {
       const deployed = join(root, 'node_modules', '.pnpm', 'node_modules', ...name.split('/'))

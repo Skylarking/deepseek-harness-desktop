@@ -27,6 +27,10 @@ export interface PluginLocale {
   installTitle: string
   installCanceled: string
   installed: (path: string) => string
+  conflictTitle: string
+  conflictMessage: (plugin: string) => string
+  conflictDetail: (plugins: string) => string
+  conflictCanceled: string
   removeTitle: string
   removeMessage: (name: string) => string
   removeDetail: string
@@ -68,6 +72,10 @@ const ENGLISH: PluginLocale = {
   installTitle: 'Install Local DSH Package',
   installCanceled: 'Installation canceled',
   installed: path => `Installed ${path}`,
+  conflictTitle: 'Replace Conflicting Plugins',
+  conflictMessage: plugin => `${plugin} replaces enabled conflicting plugins. Continue?`,
+  conflictDetail: plugins => `The following enabled plugins will be disabled and restored when the replacement is removed or disabled:\n${plugins}`,
+  conflictCanceled: 'Installation canceled',
   removeTitle: 'Remove Plugin',
   removeMessage: name => `Remove ${name} from the Web profile?`,
   removeDetail: 'The plugin source directory will not be deleted. Plugin-owned settings will be removed.',
@@ -111,6 +119,10 @@ const CHINESE: PluginLocale = {
   installTitle: '安装本地 DSH 包',
   installCanceled: '已取消安装',
   installed: path => `已安装 ${path}`,
+  conflictTitle: '替换冲突插件',
+  conflictMessage: plugin => `${plugin} 会替换已启用的冲突插件。是否继续？`,
+  conflictDetail: plugins => `以下已启用插件会被停用，并在替换插件卸载或停用时恢复：\n${plugins}`,
+  conflictCanceled: '已取消安装',
   removeTitle: '卸载插件',
   removeMessage: name => `从 Web profile 卸载 ${name}？`,
   removeDetail: '不会删除插件源码目录，但会移除插件拥有的设置。',

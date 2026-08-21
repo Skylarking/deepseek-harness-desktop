@@ -1,11 +1,6 @@
 packages:
   - vendor/*
   - packages/*/*
-  # Repository-tracked out-of-tree plugins. They participate in development
-  # checks but are not dependencies of the shipped DSH or Desktop runtime.
-  - plugins/workspace-*
-  - plugins/workspace-*/packages/*
-  - plugins/shared/*
   # The Landlock launcher is developed with its harness consumers but keeps
   # its native build and publication scripts under native/landlock-run.
   - native/landlock-run

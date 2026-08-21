@@ -20,6 +20,10 @@ export interface DesktopPlugin {
   settingsNamespaces?: string[]
   /** Profile-local package aliases required only while this plugin is enabled. */
   supportPackages?: Record<string, string>
+  /** Package names of enabled bundles whose capability this plugin replaces. */
+  conflicts?: string[]
+  /** Whether conflicts are replacement targets that Desktop may disable after confirmation. */
+  replacement?: boolean
 }
 
 /** Plugin-manager row for one installed profile package. */

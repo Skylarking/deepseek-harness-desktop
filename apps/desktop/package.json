@@ -45,10 +45,6 @@
     ],
     "extraResources": [
       {
-        "from": "desktop.patch.yml",
-        "to": "desktop.patch.yml"
-      },
-      {
         "from": ".runtime",
         "to": "dsh-runtime",
         "filter": [

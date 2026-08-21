@@ -11,9 +11,6 @@
   "workspaces": [
     "vendor/*",
     "packages/*/*",
-    "plugins/workspace-*",
-    "plugins/workspace-*/packages/*",
-    "plugins/shared/*",
     "native/landlock-run",
     "native/landlock-run/packages/*",
     "apps/*",

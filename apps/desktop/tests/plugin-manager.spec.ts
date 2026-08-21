@@ -5,7 +5,8 @@ import { mkdtemp } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import {
   cleanupPluginSettings, cleanupProfilePluginLink, listProfilePlugins, localPluginPath,
-  removeRetiredDesktopDefaults, resolveSettingsFile, runPluginCommand, setProfilePluginEnabled,
+  disableReplacementConflicts, readLocalPluginMetadata, removeRetiredDesktopDefaults,
+  restoreReplacementConflicts, resolveSettingsFile, runPluginCommand, setProfilePluginEnabled,
   syncProfileSupportPackages,
 } from '../src/plugin-manager.ts'
 
@@ -216,6 +217,40 @@ describe('plugin profile discovery', () => {
       localPath: plugin,
       desktopOverlay: { entry: join(plugin, 'desktop.html'), width: 164, height: 164 },
     }])
+  })
+
+  it('reads replacement conflicts from a local plugin manifest', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-plugin-conflicts-'))
+    await writeFile(join(root, 'package.json'), JSON.stringify({
+      name: 'replacement-plugin',
+      dsh: { desktop: {
+        replacement: true,
+        conflicts: ['@example/workspace-console', '@example/workspace-files', '@example/workspace-files'],
+      } },
+    }))
+
+    await expect(readLocalPluginMetadata(root)).resolves.toEqual({
+      name: 'replacement-plugin',
+      replacement: true,
+      conflicts: ['@example/workspace-console', '@example/workspace-files'],
+    })
+  })
+
+  it('restores replacement conflicts at their original bundle positions', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-desktop-replacement-state-'))
+    await writeFile(join(root, 'package.json'), JSON.stringify({
+      dependencies: { first: '^1.0.0', official: '^1.0.0', last: '^1.0.0' },
+      dsh: { profile: { bundles: ['first', 'official', 'last'] } },
+    }))
+
+    await disableReplacementConflicts(root, 'replacement', ['official'])
+    expect(JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))).toMatchObject({
+      dsh: { profile: { bundles: ['first', 'last'] } },
+    })
+    await restoreReplacementConflicts(root, 'replacement')
+    expect(JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))).toMatchObject({
+      dsh: { profile: { bundles: ['first', 'official', 'last'] } },
+    })
   })
 
   it('accepts the host-provided web surface without resolving it as a file', async () => {

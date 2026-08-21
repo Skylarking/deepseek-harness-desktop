@@ -4,7 +4,7 @@
  */
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import {
   app,
   BrowserWindow,
@@ -29,7 +29,8 @@ import { pluginLocale } from './plugin-locale.ts'
 import { pluginWindowOptions } from './plugin-window.ts'
 import {
   cleanupPluginSettings, cleanupProfilePluginLink, listProfilePlugins,
-  removeRetiredDesktopDefaults, resolveSettingsFile, resolveWebProfileDir,
+  disableReplacementConflicts, readLocalPluginMetadata, removeRetiredDesktopDefaults,
+  restoreReplacementConflicts, resolveSettingsFile, resolveWebProfileDir,
   runPluginCommand, setProfilePluginEnabled, syncProfileSupportPackages,
 } from './plugin-manager.ts'
 import { RuntimeOperationQueue } from './runtime-operation-queue.ts'
@@ -38,7 +39,6 @@ import { isTrustedRendererFrame, isTrustedRuntimeFrame } from './window-security
 const APP_NAME = 'DeepSeek Harness'
 const DESKTOP_HOST_MARKER = 'dsh:desktop-host'
 const PLUGIN_MANAGER_URL = pathToFileURL(join(import.meta.dirname, 'renderer', 'plugins.html')).href
-const DESKTOP_PLUGIN_INVENTORY = '@skylarking/dsh-client-ui-desktop-plugin-inventory'
 
 let mainWindow: BrowserWindow | undefined
 let pluginWindow: BrowserWindow | undefined
@@ -72,19 +72,6 @@ async function initializeWebProfile(profileDir: string): Promise<void> {
   const bundles = profileBoot.PROFILE_TEMPLATES.web
   if (bundles === undefined) throw new Error('The staged DSH runtime does not define the Web profile')
   profileBoot.initProfile(profileDir, bundles)
-}
-
-function desktopPatchPath(): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'desktop.patch.yml')
-    : fileURLToPath(new URL('../desktop.patch.yml', import.meta.url))
-}
-
-function requiredDesktopSupportPackages(): Record<string, string> {
-  const runtimeRoot = dirname(dirname(runtimeEntry))
-  return {
-    [DESKTOP_PLUGIN_INVENTORY]: join(runtimeRoot, 'node_modules', ...DESKTOP_PLUGIN_INVENTORY.split('/')),
-  }
 }
 
 function loadingPage(message: string): string {
@@ -288,7 +275,7 @@ async function syncDesktopOverlays(): Promise<void> {
 async function startRuntime(): Promise<void> {
   const next = new DshProcess(runtimeEntry, {
     cwd: workspace,
-    args: ['web', '--patch', desktopPatchPath(), '--host', '127.0.0.1', '--port', '0'],
+    args: ['web', '--host', '127.0.0.1', '--port', '0'],
   })
   runtime = next
   const state = await next.start()
@@ -324,7 +311,7 @@ async function mutatePlugins(operation: () => Promise<void>, success: string): P
     try {
       await operation()
       await syncProfileSupportPackages(
-        resolveWebProfileDir(), runtimeEntry, workspace, runPluginCommand, requiredDesktopSupportPackages(),
+        resolveWebProfileDir(), runtimeEntry, workspace, runPluginCommand, {},
       )
     } finally {
       await startRuntime()
@@ -358,8 +345,30 @@ async function installLocalPlugin(parent: BrowserWindow): Promise<PluginMutation
   })
   const selected = selection.filePaths[0]
   if (selection.canceled || selected === undefined) return { changed: false, message: copy.installCanceled }
+  const metadata = await readLocalPluginMetadata(selected)
+  const installed = await listProfilePlugins(resolveWebProfileDir())
+  const conflicts = metadata.replacement === true
+    ? installed.filter(plugin => plugin.enabled && metadata.conflicts?.some(target => (
+      target === plugin.name || Object.keys(plugin.supportPackages ?? {}).includes(target)
+    )))
+    : []
+  if (conflicts.length > 0) {
+    const confirmation = await dialog.showMessageBox(parent, {
+      type: 'warning',
+      buttons: [copy.cancel, copy.installLocal],
+      defaultId: 0,
+      cancelId: 0,
+      title: copy.conflictTitle,
+      message: copy.conflictMessage(metadata.name),
+      detail: copy.conflictDetail(conflicts.map(plugin => plugin.name).join('\n')),
+    })
+    if (confirmation.response !== 1) return { changed: false, message: copy.conflictCanceled }
+  }
   return await mutatePlugins(
-    async () => { await runPluginCommand(runtimeEntry, workspace, ['add', selected]) },
+    async () => {
+      await runPluginCommand(runtimeEntry, workspace, ['add', selected])
+      await disableReplacementConflicts(resolveWebProfileDir(), metadata.name, conflicts.map(plugin => plugin.name))
+    },
     copy.installed(selected),
   )
 }
@@ -382,6 +391,7 @@ async function removePlugin(parent: BrowserWindow, name: string): Promise<Plugin
   return await mutatePlugins(
     async () => {
       await runPluginCommand(runtimeEntry, workspace, ['remove', name])
+      await restoreReplacementConflicts(profileDir, name)
       await cleanupPluginSettings(resolveSettingsFile(), plugin.settingsNamespaces ?? [])
       await cleanupProfilePluginLink(profileDir, name)
     },
@@ -395,6 +405,11 @@ async function setPluginEnabled(parent: BrowserWindow, name: string, enabled: bo
   if (plugin === undefined) throw new Error(`Plugin is not installed: ${name}`)
   if (plugin.enabled === enabled) return { changed: false, message: copy.alreadyToggled(name, enabled) }
   const action = enabled ? copy.enable : copy.disable
+  const conflicts = enabled && plugin.replacement === true
+    ? (await listProfilePlugins(resolveWebProfileDir())).filter(candidate => candidate.enabled && plugin.conflicts?.some(target => (
+      target === candidate.name || Object.keys(candidate.supportPackages ?? {}).includes(target)
+    )))
+    : []
   const confirmation = await dialog.showMessageBox(parent, {
     type: 'question',
     buttons: [copy.cancel, action],
@@ -405,8 +420,25 @@ async function setPluginEnabled(parent: BrowserWindow, name: string, enabled: bo
     detail: copy.toggleDetail(enabled),
   })
   if (confirmation.response !== 1) return { changed: false, message: copy.toggleCanceled(enabled) }
+  if (conflicts.length > 0) {
+    const replacementConfirmation = await dialog.showMessageBox(parent, {
+      type: 'warning',
+      buttons: [copy.cancel, copy.enable],
+      defaultId: 0,
+      cancelId: 0,
+      title: copy.conflictTitle,
+      message: copy.conflictMessage(name),
+      detail: copy.conflictDetail(conflicts.map(candidate => candidate.name).join('\n')),
+    })
+    if (replacementConfirmation.response !== 1) return { changed: false, message: copy.conflictCanceled }
+  }
   return await mutatePlugins(
-    async () => { await setProfilePluginEnabled(resolveWebProfileDir(), name, enabled) },
+    async () => {
+      const profileDir = resolveWebProfileDir()
+      if (!enabled) await restoreReplacementConflicts(profileDir, name)
+      await setProfilePluginEnabled(profileDir, name, enabled)
+      if (enabled) await disableReplacementConflicts(profileDir, name, conflicts.map(candidate => candidate.name))
+    },
     copy.toggleComplete(name, enabled),
   )
 }
@@ -559,7 +591,7 @@ async function boot(): Promise<void> {
       await initializeWebProfile(profileDir)
       await removeRetiredDesktopDefaults(profileDir, runtimeEntry)
       await syncProfileSupportPackages(
-        profileDir, runtimeEntry, workspace, runPluginCommand, requiredDesktopSupportPackages(),
+        profileDir, runtimeEntry, workspace, runPluginCommand, {},
       )
       registerPluginIpc()
       registerOverlayIpc()

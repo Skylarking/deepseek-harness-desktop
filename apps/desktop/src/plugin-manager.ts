@@ -17,6 +17,9 @@ interface ProfileManifest {
       overlay?: unknown
       defaultPlugins?: unknown
       managedSupportPackages?: unknown
+      conflicts?: unknown
+      replacement?: unknown
+      replacementState?: unknown
       support?: unknown
       supportPackages?: unknown
     }
@@ -85,6 +88,12 @@ function supportPackages(value: unknown, packageDir: string): Record<string, str
     resolved[name] = resolve(packageDir, spec)
   }
   return Object.keys(resolved).length === 0 ? undefined : resolved
+}
+
+function conflictPackages(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const names = value.filter((entry): entry is string => typeof entry === 'string' && packageName(entry))
+  return names.length === 0 ? undefined : [...new Set(names)]
 }
 
 interface DesktopOverlayManifest {
@@ -256,6 +265,7 @@ async function readPlugin(
     const overlay = desktopOverlay(packageManifest.dsh?.desktop?.overlay)
     const ownedSettings = settingsNamespaces(packageManifest.dsh?.settings?.namespaces)
     const ownedSupport = supportPackages(packageManifest.dsh?.desktop?.supportPackages, packageDir)
+    const conflicts = conflictPackages(packageManifest.dsh?.desktop?.conflicts)
     const webSurface = overlay?.entry === 'dsh:web'
     const overlayPath = overlay === undefined || webSurface ? undefined : resolve(packageDir, overlay.entry)
     const overlayRelative = overlayPath === undefined ? undefined : relative(packageDir, overlayPath)
@@ -278,10 +288,100 @@ async function readPlugin(
       ...(safeOverlay === undefined ? {} : { desktopOverlay: safeOverlay }),
       ...(ownedSettings === undefined ? {} : { settingsNamespaces: ownedSettings }),
       ...(ownedSupport === undefined ? {} : { supportPackages: ownedSupport }),
+      ...(conflicts === undefined ? {} : { conflicts }),
+      ...(packageManifest.dsh?.desktop?.replacement === true ? { replacement: true } : {}),
     }
   } catch {
     return { name, spec, kind: 'package', enabled: false, ...(localPath === undefined ? {} : { localPath }) }
   }
+}
+
+/** Read the package metadata needed before a local plugin is installed. */
+export async function readLocalPluginMetadata(packageDir: string): Promise<Pick<DesktopPlugin, 'name' | 'conflicts' | 'replacement'>> {
+  const manifest = JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8')) as ProfileManifest & { name?: unknown }
+  if (typeof manifest.name !== 'string' || !packageName(manifest.name)) throw new Error(`Invalid plugin package name in ${packageDir}`)
+  const conflicts = conflictPackages(manifest.dsh?.desktop?.conflicts)
+  return {
+    name: manifest.name,
+    ...(conflicts === undefined ? {} : { conflicts }),
+    ...(manifest.dsh?.desktop?.replacement === true ? { replacement: true } : {}),
+  }
+}
+
+interface ReplacementStateEntry {
+  name: string
+  index: number
+}
+
+type ReplacementState = Record<string, ReplacementStateEntry[]>
+
+function replacementState(value: unknown): ReplacementState {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const state: ReplacementState = {}
+  for (const [owner, entries] of Object.entries(value)) {
+    if (!Array.isArray(entries)) continue
+    const valid = entries.flatMap((entry) => {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return []
+      const candidate = entry as { name?: unknown; index?: unknown }
+      return typeof candidate.name === 'string' && packageName(candidate.name) && Number.isInteger(candidate.index) && (candidate.index as number) >= 0
+        ? [{ name: candidate.name, index: candidate.index as number }]
+        : []
+    })
+    if (valid.length > 0) state[owner] = valid
+  }
+  return state
+}
+
+/** Disable declared conflicting bundles while recording their original order for restoration. */
+export async function disableReplacementConflicts(profileDir: string, owner: string, conflicts: readonly string[]): Promise<void> {
+  if (conflicts.length === 0) return
+  const manifestPath = join(profileDir, 'package.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ProfileManifest
+  const dependencies = manifest.dependencies ?? {}
+  const bundles = Array.isArray(manifest.dsh?.profile?.bundles)
+    ? manifest.dsh.profile.bundles.filter((value): value is string => typeof value === 'string')
+    : Object.keys(dependencies)
+  const targets = new Set(conflicts.filter(name => dependencies[name] !== undefined))
+  const existing = replacementState(manifest.dsh?.desktop?.replacementState)
+  const captured = existing[owner] ?? []
+  for (const name of targets) {
+    const index = bundles.indexOf(name)
+    if (index >= 0 && !captured.some(entry => entry.name === name)) captured.push({ name, index })
+  }
+  const nextBundles = bundles.filter(name => !targets.has(name))
+  manifest.dsh ??= {}
+  manifest.dsh.profile = { ...manifest.dsh.profile, bundles: nextBundles }
+  manifest.dsh.desktop = {
+    ...manifest.dsh.desktop,
+    replacementState: { ...existing, ...(captured.length === 0 ? {} : { [owner]: captured }) },
+  }
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
+/** Restore bundles disabled by a replacement plugin and forget the ownership record. */
+export async function restoreReplacementConflicts(profileDir: string, owner: string): Promise<void> {
+  const manifestPath = join(profileDir, 'package.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ProfileManifest
+  const existing = replacementState(manifest.dsh?.desktop?.replacementState)
+  const entries = existing[owner]
+  if (entries === undefined) return
+  const dependencies = manifest.dependencies ?? {}
+  const bundles = Array.isArray(manifest.dsh?.profile?.bundles)
+    ? manifest.dsh.profile.bundles.filter((value): value is string => typeof value === 'string')
+    : Object.keys(dependencies)
+  const restored = [...bundles]
+  for (const entry of [...entries].sort((left, right) => left.index - right.index)) {
+    if (dependencies[entry.name] === undefined || restored.includes(entry.name)) continue
+    restored.splice(Math.min(entry.index, restored.length), 0, entry.name)
+  }
+  const remaining = Object.fromEntries(Object.entries(existing).filter(([name]) => name !== owner))
+  manifest.dsh ??= {}
+  manifest.dsh.profile = { ...manifest.dsh.profile, bundles: restored }
+  const desktop = { ...manifest.dsh.desktop }
+  if (Object.keys(remaining).length === 0) delete desktop.replacementState
+  else desktop.replacementState = remaining
+  manifest.dsh.desktop = desktop
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 }
 
 async function removeInvalidProfileBundles(profileDir: string): Promise<void> {

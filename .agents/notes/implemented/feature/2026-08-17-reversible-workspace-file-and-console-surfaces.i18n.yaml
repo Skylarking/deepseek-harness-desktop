@@ -1,6 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-17-reversible-workspace-file-and-console-surfaces.md
-2026-08-17-reversible-workspace-file-and-console-surfaces.md: 4f229ce6b8aa28b74a118d8938b9aa426c2ecf4d
-2026-08-17-reversible-workspace-file-and-console-surfaces.zh.md: f9b471398ffc01328cb7d9877d3d5b11e52aa083

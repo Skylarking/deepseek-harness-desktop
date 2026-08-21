@@ -796,21 +796,6 @@
       "ignoreDependencies": [
         "@deepseek-ai/.+"
       ]
-    },
-    "plugins/workspace-console": {
-      "ignoreDependencies": [
-        "@deepseek-ai/.+"
-      ]
-    },
-    "plugins/workspace-files": {
-      "ignoreDependencies": [
-        "@deepseek-ai/.+"
-      ]
-    },
-    "plugins/shared/workspace-layout": {
-      "ignoreDependencies": [
-        "@deepseek-ai/.+"
-      ]
     }
   }
 }
